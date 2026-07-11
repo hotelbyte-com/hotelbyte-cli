@@ -1,0 +1,1 @@
+"""commands package — CLI command groups per profile."""
