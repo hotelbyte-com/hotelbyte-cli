@@ -1,1 +1,0 @@
-"""Tenant Portal profile command group."""

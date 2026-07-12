@@ -11,11 +11,21 @@ one binary. Route registration is reflection-based: service methods carry
 comment annotations (`@path`, `@auth`, `@permission`) that the
 `ServiceDispatcher` maps to `/api/<service>/<method>` routes.
 
-The CLI wraps the **HTTP API**, not the Go binary. It is a Python Click
-application that calls the real backend over HTTPS — no mock servers, no
-in-process stubs.
+The CLI wraps the **HTTP API**, not the Go binary. It is a Bun + TypeScript
+application compiled to a **self-contained native binary** via
+`bun build --compile`. No Python/Node/Bun runtime is required on the
+target machine — the binary embeds the entire runtime.
 
-## 2. Two Profiles, One Binary
+## 2. Technology Stack
+
+- **Language**: TypeScript (strict mode)
+- **Runtime/Compiler**: Bun (`bun build --compile` → native Mach-O / ELF binary)
+- **CLI Framework**: Commander.js (`commander`)
+- **HTTP**: Native `fetch` (built into Bun runtime)
+- **Testing**: `bun test`
+- **Distribution**: GitHub Releases with pre-compiled platform binaries
+
+## 3. Two Profiles, One Binary
 
 ### Design Decision: Profile Routing (not separate CLIs)
 
@@ -44,18 +54,58 @@ config store, auth flow, and REPL infrastructure for no architectural gain.
 | Subscriptions | — | `/api/user/tenant/*Subscription` |
 | View/Menu | — | `/api/view/paasHomepage`, `retailHomepage` |
 
-## 3. Authentic Software Integration
+## 4. Authentic Software Integration
 
 Per HARNESS.md "Authentic Software Integration" principle: the CLI calls the
 **real HotelByte backend**. No mock servers, no in-process Go calls, no
 fallback renderers. If the backend is unreachable, the CLI fails with a
 network error — it does not fabricate responses.
 
-## 4. Dual Interaction Modes
+## 5. Closed-Source Distribution (Claude Code style)
+
+The CLI is distributed as **pre-compiled native binaries** via GitHub Releases:
+
+```
+Release v0.2.0 assets:
+  hotelbyte-cli-darwin-arm64    # Apple Silicon (M1/M2/M3)
+  hotelbyte-cli-darwin-x64      # Intel Mac
+  hotelbyte-cli-linux-arm64     # ARM Linux servers
+  hotelbyte-cli-linux-x64       # Intel Linux servers
+  install.sh                    # One-click installer
+  uninstall.sh                  # Uninstaller
+```
+
+- **No source tarball** is attached to releases (closed-source).
+- The `bun build --compile` output is a native binary that cannot be
+  decompiled back to source — the TypeScript is embedded in the Bun
+  runtime's binary format.
+- Users install via `curl | bash` and need no runtime dependencies.
+
+### Installation Layout (Claude Code pattern)
+
+```
+~/.hotelbyte-cli/
+├── versions/
+│   └── 0.2.0/              # native binary for this version
+│       └── hotelbyte-cli
+├── current -> versions/0.2.0  # symlink to active version
+└── credentials.json      # credential store (mode 0600)
+
+~/.local/bin/hotelbyte-cli -> ~/.hotelbyte-cli/versions/0.2.0/hotelbyte-cli
+```
+
+### Self-Update
+
+`hotelbyte-cli update` checks the GitHub API for the latest release,
+downloads the platform-appropriate binary, writes it to a new version
+directory, and repoints the `current` symlink — identical to how
+Claude Code self-updates.
+
+## 6. Dual Interaction Modes
 
 ### Subcommand Mode (scripting/pipelines)
 ```bash
-hotelbyte-cli openapi search destinations --country-code US --json | jq '.[]'
+hotelbyte-cli --json openapi search destinations --country-code US | jq '.[]'
 ```
 
 ### REPL Mode (interactive sessions)
@@ -68,7 +118,7 @@ hotelbyte(uat)> portal orders list
 The REPL maintains session state (active profile, last response, request
 history) and supports `help`, `state`, `undo`, `exit`.
 
-## 5. Agent-Native Design
+## 7. Agent-Native Design
 
 - `--json` flag on every command → structured JSON to stdout.
 - Error mode: `{"error": "message"}` to stderr (JSON), `✗ message` (human).
@@ -76,7 +126,7 @@ history) and supports `help`, `state`, `undo`, `exit`.
 - Credential store at `~/.hotelbyte-cli/credentials.json` (mode 0600).
 - Environment profiles: `dev`, `uat`, `prod` via `--env` or `HOTELBYTE_ENV`.
 
-## 6. URL Path Mapping
+## 8. URL Path Mapping
 
 The HotelByte backend uses a reflection-based dispatcher:
 `/api/<serviceName>/<methodPath>`.
@@ -108,55 +158,59 @@ The CLI maps profile commands to backend paths:
 | `portal suppliers accessible` | `POST /api/user/tenant/getAccessibleCredentials` |
 | `portal view paas-homepage` | `POST /api/view/paasHomepage` |
 
-## 7. Package Structure
+## 9. Package Structure
 
 ```
 hotelbyte-cli/
-├── setup.py                              # pip install -e . → hotelbyte-cli entry point
-├── pytest.ini
-├── HOTELBYTE.md                          # This file (architecture SOP)
+├── package.json                        # Bun project (commander dependency)
+├── tsconfig.json                       # TypeScript strict config
+├── HOTELBYTE.md                        # This file (architecture SOP)
+├── README.md                           # User-facing documentation
+├── .github/workflows/
+│   └── release.yml                     # Tag-triggered cross-platform build + Release
+├── scripts/
+│   ├── install.sh                      # One-click curl|bash installer
+│   ├── uninstall.sh                    # Uninstaller
+│   └── build-all.ts                    # Cross-platform binary builder
 ├── skills/
 │   └── cli-anything-hotelbyte/
-│       └── SKILL.md                      # Agent-discoverable skill
-└── cli_anything/
-    └── hotelbyte/
-        ├── __init__.py
-        ├── cli.py                        # Top-level Click group + REPL
-        ├── core/
-        │   ├── config.py                  # Profile, credential store, environments
-        │   ├── http.py                    # HttpClient, HotelByteError
-        │   ├── auth.py                   # authenticate_openapi/portal
-        │   └── state.py                   # SessionState (REPL)
-        ├── utils/
-        │   ├── repl_skin.py               # Banner, prompt, REPL loop
-        │   └── output.py                  # emit()/error() (--json support)
-        ├── commands/
-        │   ├── openapi/
-        │   │   ├── group.py               # register_openapi()
-        │   │   ├── auth.py                # set-credentials, ticket
-        │   │   ├── search.py              # check-avail, destinations, hotel-list, hotel-rates, hotel-static-detail, hotels-metadata
-        │   │   └── trade.py              # book, cancel, query-orders, update-order
-        │   └── portal/
-        │       ├── group.py               # register_portal()
-        │       ├── auth.py                # login, logout, whoami
-        │       ├── search.py              # check-avail, hotel-list, hotel-rates
-        │       ├── orders.py              # list, detail, home, label, cancel, create-offline-booking, rebooking-pending
-        │       ├── users.py               # list, get, invite, batch-invite, update, list-roles, list-team-members
-        │       ├── entity.py              # entity, customers, subscriptions, suppliers, retail
-        │       └── view.py               # paas-homepage, retail-homepage
-        └── tests/
-            ├── test_config.py
-            ├── test_http.py
-            ├── test_auth.py
-            ├── test_cli.py
-            ├── test_e2e.py
-            └── TEST.md
+│       └── SKILL.md                    # Agent-discoverable skill
+├── src/
+│   ├── cli.ts                          # Top-level entry point (commander + REPL + update)
+│   ├── core/
+│   │   ├── config.ts                   # Profile, credential store, environments
+│   │   ├── http.ts                     # HttpClient, HotelByteError (fetch wrapper)
+│   │   ├── auth.ts                     # authenticateOpenapi/portal
+│   │   └── state.ts                    # SessionState (REPL)
+│   ├── utils/
+│   │   ├── repl.ts                     # Banner, prompt, REPL loop
+│   │   └── output.ts                    # emit()/error()/parseJsonInput() (--json support)
+│   └── commands/
+│       ├── openapi/
+│       │   ├── group.ts                # createOpenapiGroup()
+│       │   ├── auth.ts                 # set-credentials, ticket
+│       │   ├── search.ts              # check-avail, destinations, hotel-list, hotel-rates, hotel-static-detail, hotels-metadata
+│       │   └── trade.ts               # book, cancel, query-orders, update-order
+│       └── portal/
+│           ├── group.ts                # createPortalGroup()
+│           ├── auth.ts                 # login, logout, whoami
+│           ├── helpers.ts              # makePortalClient() + runPortal() shared
+│           ├── search.ts              # check-avail, hotel-list, hotel-rates
+│           ├── orders.ts              # list, detail, home, label, cancel, create-offline-booking, rebooking-pending
+│           ├── users.ts               # list, get, invite, batch-invite, update, list-roles, list-team-members
+│           ├── entity.ts              # entity, customers, subscriptions, suppliers, retail
+│           └── view.ts                # paas-homepage, retail-homepage
+└── tests/
+    ├── config.test.ts                 # Credential store, env var fallback
+    ├── auth.test.ts                   # Ticket extraction, auth flows
+    └── cli.test.ts                    # CLI smoke tests (--help, subcommand routing)
 ```
 
-## 8. Constraints
+## 10. Constraints
 
-- Python >= 3.9, Click >= 8.1, requests >= 2.28.
-- No runtime dependency on the HotelBE Go binary — pure HTTP client.
+- Bun >= 1.1.0 for development (compile step).
+- **Zero runtime dependencies** on target machine — the compiled binary is self-contained.
+- `commander` is the only npm dependency, bundled into the binary at compile time.
 - Credential file is mode 0600; tokens are cached per-environment.
 - The CLI does not compute money, currencies, or prices — it passes
   through backend responses verbatim.

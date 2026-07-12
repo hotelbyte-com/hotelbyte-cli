@@ -1,1 +1,0 @@
-"""core package — shared infrastructure (config, HTTP, auth, state)."""

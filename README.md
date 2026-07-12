@@ -1,6 +1,6 @@
 # hotelbyte-cli
 
-> Agent-native CLI for the HotelByte platform. Built on the [CLI-Anything](https://github.com/HKUDS/CLI-Anything) harness pattern.
+> Agent-native CLI for the HotelByte platform. Built with Bun + TypeScript, distributed as self-contained native binaries (Claude Code style).
 
 ## What
 
@@ -15,10 +15,48 @@ Every command supports `--json` for structured agent consumption.
 
 ## Install
 
+### One-line install (recommended)
+
+```bash
+curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/install.sh | bash
+```
+
+This downloads a pre-compiled native binary — **no Python, Node, or Bun runtime required**. The binary is installed to `~/.hotelbyte-cli/versions/<version>/` with a symlink in `~/.local/bin/`.
+
+### Verify
+
+```bash
+hotelbyte-cli version
+hotelbyte-cli --help
+```
+
+### Update
+
+```bash
+hotelbyte-cli update
+```
+
+### Uninstall
+
+```bash
+curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/uninstall.sh | bash
+# With --purge to remove credentials too:
+curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/uninstall.sh | bash -s -- --purge
+```
+
+### From source (development)
+
 ```bash
 git clone git@github.com:hotelbyte-com/hotelbyte-cli.git
 cd hotelbyte-cli
-pip install -e .
+bun install
+bun run dev -- --help
+
+# Build native binary for current platform
+bun run build
+
+# Build for all platforms
+bun run build:all
 ```
 
 ## Quick Start
@@ -84,18 +122,24 @@ hotelbyte-cli --repl                                               # interactive
 
 Credentials are stored in `~/.hotelbyte-cli/credentials.json` (mode 0600).
 
+## Installation Layout (Claude Code style)
+
+```
+~/.hotelbyte-cli/
+├── versions/
+│   └── 0.2.0/              # native binary for this version
+│       └── hotelbyte-cli
+├── current -> versions/0.2.0  # symlink to active version
+└── credentials.json      # credential store (mode 0600)
+
+~/.local/bin/hotelbyte-cli -> ~/.hotelbyte-cli/versions/0.2.0/hotelbyte-cli
+```
+
 ## Tests
 
 ```bash
-pip install -e ".[dev]"
-python3 -m pytest cli_anything/hotelbyte/tests/ -v
-```
-
-E2E tests (requires live backend):
-```bash
-HOTELBYTE_E2E_URL=https://api-test.hotelbyte.com \
-HOTELBYTE_APP_KEY=... HOTELBYTE_APP_SECRET=... \
-python3 -m pytest cli_anything/hotelbyte/tests/test_e2e.py -v
+bun install
+bun test
 ```
 
 ## Architecture

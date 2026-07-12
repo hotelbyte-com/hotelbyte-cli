@@ -1,13 +1,6 @@
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-*.egg
-build/
+node_modules/
 dist/
-.eggs/
-.pytest_cache/
-.venv/
-venv/
 *.log
 .DS_Store
+bun.lockb
+.tmp-test-home/

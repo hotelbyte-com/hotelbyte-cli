@@ -1,0 +1,97 @@
+name: Release
+
+# Triggered by version tags (v0.2.0, v0.3.0, etc.)
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.2.0). Must already exist."
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries and create release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build all platform binaries
+        run: bun run scripts/build-all.ts
+
+      - name: Verify binaries exist
+        run: |
+          ls -lh dist/
+          test -f dist/hotelbyte-cli-darwin-arm64 || { echo "ERROR: darwin-arm64 missing"; exit 1; }
+          test -f dist/hotelbyte-cli-darwin-x64   || { echo "ERROR: darwin-x64 missing"; exit 1; }
+          test -f dist/hotelbyte-cli-linux-arm64  || { echo "ERROR: linux-arm64 missing"; exit 1; }
+          test -f dist/hotelbyte-cli-linux-x64    || { echo "ERROR: linux-x64 missing"; exit 1; }
+
+      - name: Make binaries executable
+        run: chmod +x dist/hotelbyte-cli-*
+
+      - name: Copy install scripts to dist
+        run: |
+          cp scripts/install.sh dist/install.sh
+          cp scripts/uninstall.sh dist/uninstall.sh
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: hotelbyte-cli ${{ steps.version.outputs.version }}
+          body: |
+            ## hotelbyte-cli v${{ steps.version.outputs.version }}
+
+            ### Install
+
+            ```bash
+            curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/download/v${{ steps.version.outputs.version }}/install.sh | bash
+            ```
+
+            ### Update
+
+            ```bash
+            hotelbyte-cli update
+            ```
+
+            ### Uninstall
+
+            ```bash
+            curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/download/v${{ steps.version.outputs.version }}/uninstall.sh | bash
+            ```
+          files: |
+            dist/hotelbyte-cli-darwin-arm64
+            dist/hotelbyte-cli-darwin-x64
+            dist/hotelbyte-cli-linux-arm64
+            dist/hotelbyte-cli-linux-x64
+            dist/install.sh
+            dist/uninstall.sh
+          draft: false
+          prerelease: false

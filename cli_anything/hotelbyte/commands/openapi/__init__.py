@@ -1,1 +1,0 @@
-"""OpenAPI profile command group."""

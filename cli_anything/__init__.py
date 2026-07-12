@@ -1,1 +1,0 @@
-"""cli_anything namespace package root (PEP 420)."""

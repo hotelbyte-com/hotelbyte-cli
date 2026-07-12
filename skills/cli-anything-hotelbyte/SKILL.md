@@ -1,25 +1,26 @@
 ---
 name: cli-anything-hotelbyte
 description: HotelByte CLI — agent-native command-line interface for the OpenAPI and Tenant Portal scenarios. Use for searching hotels, managing bookings, listing users, managing subscriptions, and interacting with the HotelByte platform via structured CLI commands.
-version: 0.1.0
+version: 0.2.0
 ---
 
 # cli-anything-hotelbyte
 
 ## Overview
 
-The HotelByte CLI turns the HotelByte hotel-booking platform into an agent-native tool. A single binary (`hotelbyte-cli`) routes to two command profiles:
+The HotelByte CLI turns the HotelByte hotel-booking platform into an agent-native tool. A single native binary (`hotelbyte-cli`) routes to two command profiles:
 
 - **`openapi`** — public OpenAPI surface (search + trade). Authenticates via appKey/appSecret → JWT ticket.
 - **`portal`** — tenant-portal BFF (users, orders, entity, subscriptions, suppliers, settings). Authenticates via username/password → JWT ticket.
+
+Built with **Bun + TypeScript**, compiled to self-contained native binaries. No runtime dependencies required on the target machine.
 
 Every command supports `--json` for structured agent consumption.
 
 ## Installation
 
 ```bash
-cd hotelbyte-cli
-pip install -e .
+curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/install.sh | bash
 ```
 
 ## Quick Start
@@ -108,7 +109,8 @@ hotelbyte-cli portal retail status
 hotelbyte-cli --json openapi search destinations --country-code US  # JSON output
 hotelbyte-cli --env prod openapi search destinations --country-code US  # Select environment
 hotelbyte-cli --repl  # Interactive REPL mode
-hotelbyte-cli --version
+hotelbyte-cli version  # Show version + install path
+hotelbyte-cli update  # Self-update to latest release
 ```
 
 ## Command Groups
@@ -145,11 +147,12 @@ hotelbyte-cli --version
 - Env var fallbacks: `HOTELBYTE_APP_KEY`, `HOTELBYTE_APP_SECRET`, `HOTELBYTE_USERNAME`, `HOTELBYTE_PASSWORD`, `HOTELBYTE_BASE_URL`.
 - The ticket is auto-refreshed; if it expires, the next command re-authenticates.
 - Error handling: non-2xx responses print `✗ [status] /path: body` (human) or `{"error": "…"}` (JSON mode).
+- Self-update: `hotelbyte-cli update` downloads the latest native binary from GitHub Releases.
 
 ## Architecture
 
 ```
-hotelbyte-cli (single binary)
+hotelbyte-cli (single native binary, Bun-compiled)
 ├── openapi profile (appKey/appSecret → JWT)
 │   ├── auth     → /api/auth/ticket
 │   ├── search   → /api/search/*
