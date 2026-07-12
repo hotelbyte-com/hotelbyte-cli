@@ -27,11 +27,11 @@ import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
 
-const VERSION = "0.3.0";
+const VERSION = "0.0.1";
 
 // ── self-update ────────────────────────────────────────────────────────
 
-const REPO = "hotelbyte-com/hotelbyte-cli";
+const REPO = "hotelbyte-com/docs";
 const GITHUB_API = `https://api.github.com/repos/${REPO}/releases/latest`;
 
 async function selfUpdate(jsonMode: boolean): Promise<void> {
@@ -40,7 +40,7 @@ async function selfUpdate(jsonMode: boolean): Promise<void> {
     const resp = await fetch(GITHUB_API, { headers: { Accept: "application/vnd.github+json" } });
     if (!resp.ok) throw new Error(`Failed to fetch latest release: ${resp.status}`);
     const data = await resp.json() as any;
-    const latest = data.tag_name?.replace(/^v/, "") ?? "unknown";
+    const latest = data.tag_name?.replace(/^staicli-v/, "") ?? "unknown";
 
     if (latest === VERSION) {
       if (jsonMode) emit({ status: "up-to-date", version: VERSION }, true);

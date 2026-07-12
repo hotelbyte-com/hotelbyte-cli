@@ -5,7 +5,7 @@
 # One-line install — downloads a pre-compiled native binary.
 #
 # Usage:
-#   curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/install.sh | bash
+#   curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/install.sh | bash
 #
 # Options:
 #   --version <ver>     Specific version (default: latest)
@@ -18,7 +18,8 @@ if [ -n "${PYTHONPATH:-}" ]; then unset PYTHONPATH; fi
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
-REPO="hotelbyte-com/hotelbyte-cli"
+REPO="hotelbyte-com/docs"
+TAG_PREFIX="staicli-v"
 STAICLI_HOME="${STAICLI_HOME:-$HOME/.staicli}"
 INSTALL_VERSION=""
 INSTALL_BIN_DIR="${STAICLI_INSTALL_BIN_DIR:-$HOME/.local/bin}"
@@ -47,22 +48,24 @@ echo -e "  Platform: ${PLATFORM}/${ARCH}"
 echo -e "  Version:  ${INSTALL_VERSION:-latest}"
 echo ""
 
-# Resolve version
+# Resolve version — the tag is "staicli-v0.3.0"
 if [ -z "$INSTALL_VERSION" ]; then
     echo -e "${CYAN}Fetching latest release…${NC}"
-    LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed -E 's/.*"v?([^"]+)".*/\1/')
+    LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
     [ -z "$LATEST_TAG" ] && { echo -e "${RED}Failed to determine latest version.${NC}"; exit 1; }
-    INSTALL_VERSION="$LATEST_TAG"
+    # Tag is like "staicli-v0.0.1" — strip prefix to get version number
+    INSTALL_VERSION="${LATEST_TAG#${TAG_PREFIX}}"
 fi
 
+TAG="${TAG_PREFIX}${INSTALL_VERSION}"
 echo -e "${CYAN}Installing v${INSTALL_VERSION}…${NC}"
 
-# Find release asset
-RELEASE_URL="https://api.github.com/repos/${REPO}/releases/tags/v${INSTALL_VERSION}"
+# Find release asset by tag
+RELEASE_URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
 ASSET_URL=$(curl -fsSL "$RELEASE_URL" | grep -o '"browser_download_url":\s*"[^"]*'"${ASSET_NAME}"'"' | head -1 | sed -E 's/.*"([^"]+)"$/\1/')
 
 if [ -z "$ASSET_URL" ]; then
-    echo -e "${RED}No binary for ${PLATFORM}/${ARCH} in v${INSTALL_VERSION}.${NC}"
+    echo -e "${RED}No binary for ${PLATFORM}/${ARCH} in ${TAG}.${NC}"
     curl -fsSL "$RELEASE_URL" | grep '"browser_download_url"' | sed -E 's/.*"([^"]+)"$/  - \1/' || true
     exit 1
 fi

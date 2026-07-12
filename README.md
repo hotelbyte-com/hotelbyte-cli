@@ -26,7 +26,7 @@ Every command supports `--json` for structured agent consumption.
 ## Install
 
 ```bash
-curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/install.sh | bash
 ```
 
 Pre-compiled native binary — **no Python, Node, or Bun runtime required**.
@@ -43,9 +43,9 @@ hbcli --help
 ```bash
 hbcli update
 
-curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/uninstall.sh | bash
+curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/uninstall.sh | bash
 # With --purge to remove credentials:
-curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/latest/download/uninstall.sh | bash -s -- --purge
+curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/uninstall.sh | bash -s -- --purge
 ```
 
 ## Quick Start
@@ -127,11 +127,11 @@ hbcli
 
 ```
 ~/.staicli/
-├── versions/0.3.0/hbcli            # native binary
-├── current → versions/0.3.0         # symlink
+├── versions/0.0.1/hbcli            # native binary
+├── current → versions/0.0.1         # symlink
 └── credentials.json                 # credential store (0600)
 
-~/.local/bin/hbcli → ~/.staicli/versions/0.3.0/hbcli
+~/.local/bin/hbcli → ~/.staicli/versions/0.0.1/hbcli
 ```
 
 ## Tests
