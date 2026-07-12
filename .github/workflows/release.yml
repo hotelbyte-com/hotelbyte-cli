@@ -40,13 +40,13 @@ jobs:
       - name: Verify binaries exist
         run: |
           ls -lh dist/
-          test -f dist/hotelbyte-cli-darwin-arm64 || { echo "ERROR: darwin-arm64 missing"; exit 1; }
-          test -f dist/hotelbyte-cli-darwin-x64   || { echo "ERROR: darwin-x64 missing"; exit 1; }
-          test -f dist/hotelbyte-cli-linux-arm64  || { echo "ERROR: linux-arm64 missing"; exit 1; }
-          test -f dist/hotelbyte-cli-linux-x64    || { echo "ERROR: linux-x64 missing"; exit 1; }
+          test -f dist/hbcli-darwin-arm64 || { echo "ERROR: darwin-arm64 missing"; exit 1; }
+          test -f dist/hbcli-darwin-x64   || { echo "ERROR: darwin-x64 missing"; exit 1; }
+          test -f dist/hbcli-linux-arm64  || { echo "ERROR: linux-arm64 missing"; exit 1; }
+          test -f dist/hbcli-linux-x64    || { echo "ERROR: linux-x64 missing"; exit 1; }
 
       - name: Make binaries executable
-        run: chmod +x dist/hotelbyte-cli-*
+        run: chmod +x dist/hbcli-*
 
       - name: Copy install scripts to dist
         run: |
@@ -65,9 +65,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: hotelbyte-cli ${{ steps.version.outputs.version }}
+          name: staicli ${{ steps.version.outputs.version }}
           body: |
-            ## hotelbyte-cli v${{ steps.version.outputs.version }}
+            ## staicli (hbcli) v${{ steps.version.outputs.version }}
 
             ### Install
 
@@ -78,7 +78,7 @@ jobs:
             ### Update
 
             ```bash
-            hotelbyte-cli update
+            hbcli update
             ```
 
             ### Uninstall
@@ -87,10 +87,10 @@ jobs:
             curl -fsSL https://github.com/hotelbyte-com/hotelbyte-cli/releases/download/v${{ steps.version.outputs.version }}/uninstall.sh | bash
             ```
           files: |
-            dist/hotelbyte-cli-darwin-arm64
-            dist/hotelbyte-cli-darwin-x64
-            dist/hotelbyte-cli-linux-arm64
-            dist/hotelbyte-cli-linux-x64
+            dist/hbcli-darwin-arm64
+            dist/hbcli-darwin-x64
+            dist/hbcli-linux-arm64
+            dist/hbcli-linux-x64
             dist/install.sh
             dist/uninstall.sh
           draft: false

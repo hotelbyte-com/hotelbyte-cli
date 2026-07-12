@@ -1,14 +1,14 @@
 {
-  "name": "hotelbyte-cli",
-  "version": "0.2.0",
-  "description": "HotelByte CLI — agent-native interface for the OpenAPI and Tenant Portal scenarios",
+  "name": "staicli",
+  "version": "0.3.0",
+  "description": "staicli (hbcli) — HotelByte CLI for hotel search, booking, and tenant management",
   "type": "module",
   "bin": {
-    "hotelbyte-cli": "src/cli.ts"
+    "hbcli": "src/cli.ts"
   },
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/hotelbyte-cli src/cli.ts",
+    "build": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/hbcli src/cli.ts",
     "build:all": "bun run scripts/build-all.ts",
     "test": "bun test",
     "prepublishOnly": "bun run build"

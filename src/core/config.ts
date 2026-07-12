@@ -24,9 +24,9 @@ export const DEFAULT_ENV = process.env.HOTELBYTE_ENV ?? "uat";
 
 // ── credential store ────────────────────────────────────────────────────
 
-export const HOTELBYTE_HOME =
-  process.env.HOTELBYTE_HOME ?? join(homedir(), ".hotelbyte-cli");
-const CRED_FILE = join(HOTELBYTE_HOME, "credentials.json");
+export const STAICLI_HOME =
+  process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
+const CRED_FILE = join(STAICLI_HOME, "credentials.json");
 
 // ── profile ─────────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ function loadStore(): StoreData {
 }
 
 function saveStore(data: StoreData): void {
-  mkdirSync(HOTELBYTE_HOME, { recursive: true });
+  mkdirSync(STAICLI_HOME, { recursive: true });
   writeFileSync(CRED_FILE, JSON.stringify(data, null, 2));
   try {
     chmodSync(CRED_FILE, 0o600);

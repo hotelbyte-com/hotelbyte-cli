@@ -20,11 +20,11 @@ const TMP_HOME = join(import.meta.dir, ".tmp-test-home");
 beforeEach(() => {
   if (existsSync(TMP_HOME)) rmSync(TMP_HOME, { recursive: true });
   mkdirSync(TMP_HOME, { recursive: true });
-  process.env.HOTELBYTE_HOME = TMP_HOME;
+  process.env.STAICLI_HOME = TMP_HOME;
 });
 
 afterEach(() => {
-  delete process.env.HOTELBYTE_HOME;
+  delete process.env.STAICLI_HOME;
   if (existsSync(TMP_HOME)) rmSync(TMP_HOME, { recursive: true });
 });
 

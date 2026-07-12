@@ -1,5 +1,5 @@
 /**
- * tests/cli.test.ts — CLI smoke tests via Bun's subprocess runner.
+ * tests/cli.test.ts — CLI smoke tests for the flattened command tree.
  */
 
 import { describe, it, expect } from "bun:test";
@@ -21,40 +21,42 @@ function runCli(args: string[]): { stdout: string; stderr: string; exitCode: num
 }
 
 describe("Top-level CLI", () => {
-  it("--help should show openapi and portal profiles", () => {
+  it("--help should show flat command tree", () => {
     const { stdout, exitCode } = runCli(["--help"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("openapi");
-    expect(stdout).toContain("portal");
+    expect(stdout).toContain("search");
+    expect(stdout).toContain("trade");
+    expect(stdout).toContain("orders");
+    expect(stdout).toContain("team");
+    expect(stdout).toContain("account");
+    expect(stdout).toContain("auth");
+    // Should NOT contain old profile names
+    expect(stdout).not.toContain("openapi profile");
+    expect(stdout).not.toContain("portal profile");
   });
 
   it("--version should show version", () => {
     const { stdout, exitCode } = runCli(["--version"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("0.2.0");
+    expect(stdout).toContain("0.3.0");
   });
 });
 
-describe("OpenAPI group", () => {
-  it("openapi --help should show auth, search, trade", () => {
-    const { stdout, exitCode } = runCli(["openapi", "--help"]);
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("auth");
-    expect(stdout).toContain("search");
-    expect(stdout).toContain("trade");
-  });
-
-  it("openapi search --help should list search commands", () => {
-    const { stdout, exitCode } = runCli(["openapi", "search", "--help"]);
+describe("Search commands", () => {
+  it("search --help should list all search subcommands", () => {
+    const { stdout, exitCode } = runCli(["search", "--help"]);
     expect(exitCode).toBe(0);
     expect(stdout).toContain("hotel-list");
     expect(stdout).toContain("hotel-rates");
-    expect(stdout).toContain("check-avail");
     expect(stdout).toContain("destinations");
+    expect(stdout).toContain("check-avail");
+    expect(stdout).toContain("hotel-detail");
   });
+});
 
-  it("openapi trade --help should list trade commands", () => {
-    const { stdout, exitCode } = runCli(["openapi", "trade", "--help"]);
+describe("Trade commands", () => {
+  it("trade --help should list booking subcommands", () => {
+    const { stdout, exitCode } = runCli(["trade", "--help"]);
     expect(exitCode).toBe(0);
     expect(stdout).toContain("book");
     expect(stdout).toContain("cancel");
@@ -62,35 +64,51 @@ describe("OpenAPI group", () => {
   });
 });
 
-describe("Portal group", () => {
-  it("portal --help should show all subgroups", () => {
-    const { stdout, exitCode } = runCli(["portal", "--help"]);
+describe("Orders commands", () => {
+  it("orders --help should list order subcommands", () => {
+    const { stdout, exitCode } = runCli(["orders", "--help"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("orders");
-    expect(stdout).toContain("users");
+    expect(stdout).toContain("list");
+    expect(stdout).toContain("detail");
+    expect(stdout).toContain("dashboard");
+  });
+});
+
+describe("Team commands", () => {
+  it("team --help should list team subcommands", () => {
+    const { stdout, exitCode } = runCli(["team", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("list");
+    expect(stdout).toContain("invite");
+    expect(stdout).toContain("list-roles");
+  });
+});
+
+describe("Account commands", () => {
+  it("account --help should list account subcommands", () => {
+    const { stdout, exitCode } = runCli(["account", "--help"]);
+    expect(exitCode).toBe(0);
     expect(stdout).toContain("entity");
     expect(stdout).toContain("subscriptions");
     expect(stdout).toContain("suppliers");
   });
 
-  it("portal orders --help should list order commands", () => {
-    const { stdout, exitCode } = runCli(["portal", "orders", "--help"]);
+  it("account subscriptions --help should list sub commands", () => {
+    const { stdout, exitCode } = runCli(["account", "subscriptions", "--help"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("list");
-    expect(stdout).toContain("detail");
-  });
-
-  it("portal users --help should list user commands", () => {
-    const { stdout, exitCode } = runCli(["portal", "users", "--help"]);
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("list");
-    expect(stdout).toContain("invite");
-  });
-
-  it("portal entity --help should list entity commands", () => {
-    const { stdout, exitCode } = runCli(["portal", "entity", "--help"]);
-    expect(exitCode).toBe(0);
-    expect(stdout).toContain("list");
     expect(stdout).toContain("get");
+    expect(stdout).toContain("catalog");
+    expect(stdout).toContain("invoices");
+  });
+});
+
+describe("Auth commands", () => {
+  it("auth --help should list auth subcommands", () => {
+    const { stdout, exitCode } = runCli(["auth", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("set-credentials");
+    expect(stdout).toContain("login");
+    expect(stdout).toContain("whoami");
+    expect(stdout).toContain("logout");
   });
 });
