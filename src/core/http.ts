@@ -69,17 +69,27 @@ export class HttpClient {
     }
   }
 
-  private static async _handle<T>(resp: Response, path: string): Promise<T> {
+  private async _handle<T>(resp: Response, path: string): Promise<T> {
     if (resp.status >= 400) {
       const text = await resp.text();
       throw new HotelByteError(resp.status, text, path);
     }
     const text = await resp.text();
     if (!text) return undefined as T;
+    let parsed: any;
     try {
-      return JSON.parse(text) as T;
+      parsed = JSON.parse(text);
     } catch {
       return text as T;
     }
+    // HotelByte API wraps responses in {code, msg, data}.
+    // Unwrap .data for consumers. If code != 0, raise an error.
+    if (parsed && typeof parsed === "object" && "code" in parsed && "data" in parsed) {
+      if (parsed.code !== 0) {
+        throw new HotelByteError(parsed.code, parsed.msg ?? text, path);
+      }
+      return parsed.data as T;
+    }
+    return parsed as T;
   }
 }

@@ -148,24 +148,44 @@ function main(): void {
     .version(VERSION)
     .option("--json", "Emit structured JSON for agent consumption.", false)
     .addOption(new Option("--env <env>", "Target environment.").choices(Object.keys(ENVIRONMENTS)).default(DEFAULT_ENV))
-    .option("--app-key <key>", "OpenAPI app key (overrides credential store).")
-    .option("--app-secret <secret>", "OpenAPI app secret (overrides credential store).")
-    .option("--username <user>", "Portal username (overrides credential store).")
-    .option("--password <pass>", "Portal password (overrides credential store).")
     .option("--repl", "Start interactive REPL mode.", false);
 
-  // Context accessor for subcommands
+  // Parse global flags that appear before the subcommand.
+  // Commander stores parent and child options separately, so we read
+  // the global flags from argv directly to share them with subcommands.
+  const argv = process.argv.slice(2);
+  const globalOpts: Record<string, any> = {
+    json: false,
+    env: DEFAULT_ENV,
+    appKey: undefined,
+    appSecret: undefined,
+    username: undefined,
+    password: undefined,
+    repl: false,
+  };
+  // Scan for global flags before the first non-option arg (the subcommand)
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith("-")) break; // first positional = subcommand name
+    if (arg === "--json") globalOpts.json = true;
+    else if (arg === "--env") globalOpts.env = argv[++i] ?? DEFAULT_ENV;
+    else if (arg === "--repl") globalOpts.repl = true;
+    else if (arg.startsWith("--env=")) globalOpts.env = arg.slice(6);
+    // --app-key etc are NOT global anymore — they're subcommand-scoped
+  }
+
+  // Context accessor for subcommands — reads from pre-parsed global opts
   const ctx: Ctx = {
-    jsonMode: () => program.opts().json ?? false,
-    env: () => program.opts().env ?? DEFAULT_ENV,
-    username: () => program.opts().username,
-    password: () => program.opts().password,
+    jsonMode: () => globalOpts.json,
+    env: () => globalOpts.env,
+    username: () => globalOpts.username,
+    password: () => globalOpts.password,
   };
   const openapiCtx = {
     jsonMode: ctx.jsonMode,
     env: ctx.env,
-    appKey: () => program.opts().appKey,
-    appSecret: () => program.opts().appSecret,
+    appKey: () => globalOpts.appKey,
+    appSecret: () => globalOpts.appSecret,
   };
 
   // Register profile groups
