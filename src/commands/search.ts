@@ -113,6 +113,31 @@ export function createSearchCommand(ctx: Ctx): Command {
       await run(ctx, "/api/search/hotelsMetadata", body);
     });
 
+  // anything: 通用搜索(地方 + 酒店)
+  //   转发到 hotel-be service 的 Anything 函数
+  //   (search/service/geography.go:Anything @path /api/search/anything)
+  //   给 gotry dsh 工具 call, 与现有 dest/hotel-list 在同一 dispatcher 路径。
+  search
+    .command("anything")
+    .description("Universal search across destinations + hotels (Anything via hotel-be)")
+    .argument("[keywords...]", "Search terms (joined by space)")
+    .option("--content-type <type>", 'Restrict to "city" | "hotel" | default mixed')
+    .option("--parent-destination-id <id>", "Scope to a parent region ID")
+    .option("--filter-empty-cities <bool>", "Filter cities without hotels (default true)")
+    .option("--min-hotel-count <n>", "Min hotel count threshold (default 1)")
+    .action(async (keywords: string[], opts) => {
+      const body: any = {};
+      const kw = (keywords ?? []).filter(Boolean).join(" ").trim();
+      if (kw) body.keyword = kw;
+      if (opts.contentType) body.contentType = opts.contentType;
+      if (opts.parentDestinationId) {
+        body.context = { destinationId: opts.parentDestinationId };
+      }
+      if (opts.filterEmptyCities) body.filterEmptyCities = opts.filterEmptyCities !== "false";
+      if (opts.minHotelCount) body.minHotelCount = parseInt(opts.minHotelCount, 10);
+      await run(ctx, "/api/search/anything", body);
+    });
+
   return search;
 }
 
