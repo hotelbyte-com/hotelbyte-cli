@@ -92,4 +92,23 @@ describe("Credential Store", () => {
     delete process.env.HOTELBYTE_APP_KEY;
     delete process.env.HOTELBYTE_APP_SECRET;
   });
+
+  it("should fall back to HOTELBYTE_TOKEN when store ticket is absent", () => {
+    process.env.HOTELBYTE_TOKEN = "env-injected-ticket";
+    const loaded = loadProfile("portal", "prod");
+    expect(loaded.ticket).toBe("env-injected-ticket");
+    delete process.env.HOTELBYTE_TOKEN;
+  });
+
+  it("stored ticket should win over HOTELBYTE_TOKEN", () => {
+    process.env.HOTELBYTE_TOKEN = "env-injected-ticket";
+    const p: Profile = {
+      name: "portal", env: "uat", baseUrl: ENVIRONMENTS.uat,
+      username: "admin", password: "pass", ticket: "stored-ticket",
+    };
+    saveProfile(p);
+    const loaded = loadProfile("portal", "uat");
+    expect(loaded.ticket).toBe("stored-ticket");
+    delete process.env.HOTELBYTE_TOKEN;
+  });
 });

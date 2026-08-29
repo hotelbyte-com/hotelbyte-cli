@@ -102,7 +102,10 @@ export function loadProfile(name: "openapi" | "portal", env: string = DEFAULT_EN
     appSecret: saved.appSecret ?? process.env.HOTELBYTE_APP_SECRET,
     username: saved.username ?? process.env.HOTELBYTE_USERNAME,
     password: saved.password ?? process.env.HOTELBYTE_PASSWORD,
-    ticket: saved.ticket,
+    // Direct bearer injection (gotry/NL-booking passthrough): stored ticket wins;
+    // HOTELBYTE_TOKEN injects a pre-obtained portal session / openapi ticket
+    // without touching the credential store.
+    ticket: saved.ticket ?? process.env.HOTELBYTE_TOKEN,
   };
 }
 
