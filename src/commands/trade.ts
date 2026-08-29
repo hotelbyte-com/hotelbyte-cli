@@ -19,8 +19,10 @@ export function createTradeCommand(ctx: Ctx): Command {
     .requiredOption("--rate-pkg-id <id>", "Rate package ID from hotel-rates")
     .requiredOption("--holder <json>", 'Holder contact JSON, or @file.json')
     .requiredOption("--guests <json>", "Guests JSON array, or @file.json")
-    .option("--customer-reference-no <ref>", "Optional customer reference number")
+    .option("--customer-reference-no <ref>", "Idempotency key; re-booking the same ref reuses/returns the existing order")
     .option("--callback-url <url>", "Optional webhook URL for order status")
+    .option("--confirm-duplicate", "Second-pass confirmation after a 409 DUPLICATE_WARNING (same customerReferenceNo)")
+    .option("--duplicate-reason <text>", "Audit reason accompanying --confirm-duplicate")
     .action(async (opts) => {
       const body: any = {
         ratePkgId: opts.ratePkgId,
@@ -29,6 +31,8 @@ export function createTradeCommand(ctx: Ctx): Command {
       };
       if (opts.customerReferenceNo) body.customerReferenceNo = opts.customerReferenceNo;
       if (opts.callbackUrl) body.callbackUrl = opts.callbackUrl;
+      if (opts.confirmDuplicate) body.confirmDuplicate = true;
+      if (opts.duplicateReason) body.duplicateReason = opts.duplicateReason;
       await run(ctx, "/api/trade/book", body);
     });
 
