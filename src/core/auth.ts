@@ -2,7 +2,7 @@
  * auth.ts — authentication flows for both profiles.
  *
  * OpenAPI:  POST /api/auth/ticket  {appKey, appSecret} → {ticket}
- * Portal:   POST /api/auth/login    {username, password} → {ticket}
+ * Portal:   POST /api/auth/login    {email, password} → {ticket}
  *
  * Both flows cache the returned JWT ticket in the credential store.
  */
@@ -55,7 +55,9 @@ export async function authenticatePortal(profile: Profile): Promise<string> {
     );
   }
   const client = new HttpClient(profile);
-  const resp = await client.post("/api/auth/login", { username: profile.username, password: profile.password });
+  // Backend contract is {email, password} (hotel-be api/protocol/login.go LoginReq);
+  // a username field is ignored server-side and login fails with "id and key can't be empty".
+  const resp = await client.post("/api/auth/login", { email: profile.username, password: profile.password });
   const ticket = extractTicket(resp);
   profile.ticket = ticket;
   saveProfile(profile);
