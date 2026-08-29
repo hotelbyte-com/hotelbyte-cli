@@ -62,6 +62,14 @@ describe("Trade commands", () => {
     expect(stdout).toContain("cancel");
     expect(stdout).toContain("query-orders");
   });
+
+  it("trade book --help should list duplicate-confirmation flags (409 DUPLICATE_WARNING flow)", () => {
+    const { stdout, exitCode } = runCli(["trade", "book", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--confirm-duplicate");
+    expect(stdout).toContain("--duplicate-reason");
+    expect(stdout).toContain("--customer-reference-no");
+  });
 });
 
 describe("Orders commands", () => {
