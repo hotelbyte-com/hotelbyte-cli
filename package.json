@@ -1,6 +1,6 @@
 {
   "name": "staicli",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "staicli (hbcli) — HotelByte CLI for hotel search, booking, and tenant management",
   "type": "module",
   "bin": {
