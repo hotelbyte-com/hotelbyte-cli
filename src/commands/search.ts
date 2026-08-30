@@ -11,6 +11,7 @@
 
 import { Command } from "commander";
 import { run, parseJsonInput, type Ctx } from "./helpers.ts";
+import { normalizeRoomOccupancies } from "../utils/output.ts";
 
 export function createSearchCommand(ctx: Ctx): Command {
   const search = new Command("search").description("Search hotels, destinations, and rates");
