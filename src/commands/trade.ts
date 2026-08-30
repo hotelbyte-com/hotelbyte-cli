@@ -19,6 +19,7 @@ export function createTradeCommand(ctx: Ctx): Command {
     .requiredOption("--rate-pkg-id <id>", "Rate package ID from hotel-rates")
     .requiredOption("--holder <json>", 'Holder contact JSON, or @file.json')
     .requiredOption("--guests <json>", "Guests JSON array, or @file.json")
+    .requiredOption("--session-id <id>", "sessionId from the hotel-rates response (backend requires the check-avail session for book)")
     .option("--customer-reference-no <ref>", "Idempotency key; re-booking the same ref reuses/returns the existing order")
     .option("--callback-url <url>", "Optional webhook URL for order status")
     .option("--confirm-duplicate", "Second-pass confirmation after a 409 DUPLICATE_WARNING (same customerReferenceNo)")
@@ -26,6 +27,7 @@ export function createTradeCommand(ctx: Ctx): Command {
     .action(async (opts) => {
       const body: any = {
         ratePkgId: opts.ratePkgId,
+        sessionId: opts.sessionId,
         holder: parseJsonInput(opts.holder),
         guests: parseJsonInput(opts.guests),
       };
