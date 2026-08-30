@@ -63,7 +63,11 @@ export function createSearchCommand(ctx: Ctx): Command {
       if (opts.countryCode) body.countryCode = opts.countryCode;
       if (opts.nationalityCode) body.nationalityCode = opts.nationalityCode;
       if (opts.residencyCode) body.residencyCode = opts.residencyCode;
-      if (opts.roomOccupancies) body.roomOccupancies = parseJsonInput(opts.roomOccupancies);
+      if (opts.roomOccupancies) {
+        const normalized = normalizeRoomOccupancies(parseJsonInput(opts.roomOccupancies));
+        if (normalized.length === 0) throw new Error("--room-occupancies has no valid entries (need adultCount>=1 per room)");
+        body.roomOccupancies = normalized;
+      }
       await run(ctx, "/api/search/hotelRates", body);
     });
 

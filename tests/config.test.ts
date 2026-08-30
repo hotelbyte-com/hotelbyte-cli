@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
+import { normalizeRoomOccupancies } from "../src/utils/output.ts";
 import { join } from "node:path";
 import {
   ENVIRONMENTS,
@@ -110,5 +111,26 @@ describe("Credential Store", () => {
     const loaded = loadProfile("portal", "uat");
     expect(loaded.ticket).toBe("stored-ticket");
     delete process.env.HOTELBYTE_TOKEN;
+  });
+});
+describe("normalizeRoomOccupancies (CLI boundary type coercion)", () => {
+  it("coerces string adultCount from agent callers (LLM often sends numbers as strings)", () => {
+    const out = normalizeRoomOccupancies([{ adultCount: "1", childrenAges: [] }]);
+    expect(out).toEqual([{ adultCount: 1, childrenAges: [] }]);
+  });
+
+  it("coerces string children ages and drops invalid entries", () => {
+    const out = normalizeRoomOccupancies([
+      { adultCount: "2", childrenAges: ["6", 8] },
+      { adultCount: "x" },
+      { adultCount: 0 },
+      "junk",
+    ]);
+    expect(out).toEqual([{ adultCount: 2, childrenAges: [6, 8] }]);
+  });
+
+  it("returns empty for non-array input", () => {
+    expect(normalizeRoomOccupancies(undefined)).toEqual([]);
+    expect(normalizeRoomOccupancies({ adultCount: 2 })).toEqual([]);
   });
 });
