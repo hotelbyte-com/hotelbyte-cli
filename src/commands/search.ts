@@ -85,8 +85,9 @@ export function createSearchCommand(ctx: Ctx): Command {
     .command("check-avail")
     .description("Check real-time availability for a rate package")
     .requiredOption("--rate-pkg-id <id>", "Rate package ID from hotel-rates")
+    .requiredOption("--session-id <id>", "sessionId from the hotel-rates response (backend session reuse contract: checkAvail resolves the supplier payload from this session)")
     .action(async (opts) => {
-      await run(ctx, "/api/search/checkAvail", { ratePkgId: opts.ratePkgId });
+      await run(ctx, "/api/search/checkAvail", { ratePkgId: opts.ratePkgId, sessionId: opts.sessionId });
     });
 
   search
