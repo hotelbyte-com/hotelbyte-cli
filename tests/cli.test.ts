@@ -45,7 +45,7 @@ describe("Top-level CLI", () => {
   it("--version should show version", () => {
     const { stdout, exitCode } = runCli(["--version"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("0.0.1");
+    expect(stdout).toContain("0.0.2");
   });
 });
 
@@ -53,11 +53,34 @@ describe("Search commands", () => {
   it("search --help should list all search subcommands", () => {
     const { stdout, exitCode } = runCli(["search", "--help"]);
     expect(exitCode).toBe(0);
+    expect(stdout).toContain("anything");
     expect(stdout).toContain("hotel-list");
     expect(stdout).toContain("hotel-rates");
     expect(stdout).toContain("destinations");
     expect(stdout).toContain("check-avail");
     expect(stdout).toContain("hotel-detail");
+  });
+
+  it("search anything --help should list mixed-search flags", () => {
+    const { stdout, exitCode } = runCli(["search", "anything", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("keyword");
+    expect(stdout).toContain("--content-type");
+    expect(stdout).toContain("--destination-id");
+  });
+
+  it("search anything without credentials should fail with auth guidance (parse + wiring OK, never a module bug)", () => {
+    const home = mkdtempSync(join(tmpdir(), "hbcli-anything-test-"));
+    try {
+      const { stderr, exitCode } = runCliWithEnv(["--json", "search", "anything", "Dali"], {
+        ...process.env,
+        STAICLI_HOME: home,
+      });
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain("auth");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });
 
