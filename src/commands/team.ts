@@ -10,6 +10,7 @@
  */
 
 import { Command } from "commander";
+import { readFileSync } from "node:fs";
 import { run, parseJsonInput, type Ctx } from "./helpers.ts";
 
 export function createTeamCommand(ctx: Ctx): Command {
@@ -53,7 +54,7 @@ export function createTeamCommand(ctx: Ctx): Command {
     .requiredOption("--file <path>", "JSON file with invite list, or @file.json")
     .action(async (opts) => {
       const path = opts.file.startsWith("@") ? opts.file.slice(1) : opts.file;
-      const invites = JSON.parse(Bun.file(path).textSync());
+      const invites = JSON.parse(readFileSync(path, "utf8"));
       await run(ctx, "/api/user/tenant/batchInviteUser", { invites });
     });
 
