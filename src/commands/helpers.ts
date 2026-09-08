@@ -12,7 +12,7 @@
  * distinction to the user.
  */
 
-import { loadProfile, type Profile } from "../core/config.ts";
+import { loadProfile, clearTicket, type Profile } from "../core/config.ts";
 import { HttpClient, HotelByteError } from "../core/http.ts";
 import { authenticateOpenapi, authenticatePortal } from "../core/auth.ts";
 import { emit, error } from "../utils/output.ts";
@@ -79,11 +79,28 @@ export async function makeClient(ctx: Ctx): Promise<HttpClient> {
 
 /**
  * Run a POST request with auto-auth, emit the result.
+ *
+ * On 401 (HTTP status or biz code 100000401 — http.ts surfaces both as
+ * HotelByteError.status), clear cached tickets and retry once: cached ST
+ * tickets are short-lived, and a stale ticket used verbatim produced
+ * hard-to-diagnose "authentication denied" failures (issue #142 follow-up).
  */
 export async function run(ctx: Ctx, path: string, body: any): Promise<void> {
-  try {
+  const attempt = async () => {
     const client = await makeClient(ctx);
-    const resp = await client.post(path, body);
+    return client.post(path, body);
+  };
+  try {
+    let resp: unknown;
+    try {
+      resp = await attempt();
+    } catch (e: any) {
+      const stale = e instanceof HotelByteError && (e.status === 401 || e.status === 1_00_00_0401);
+      if (!stale) throw e;
+      clearTicket("openapi", ctx.env());
+      clearTicket("portal", ctx.env());
+      resp = await attempt();
+    }
     emit(resp, ctx.jsonMode());
   } catch (e: any) {
     if (e instanceof HotelByteError) {
