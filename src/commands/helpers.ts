@@ -16,6 +16,7 @@ import { loadProfile, type Profile } from "../core/config.ts";
 import { HttpClient, HotelByteError } from "../core/http.ts";
 import { authenticateOpenapi, authenticatePortal } from "../core/auth.ts";
 import { emit, error } from "../utils/output.ts";
+import { readFileSync } from "node:fs";
 
 export type Ctx = { jsonMode: () => boolean; env: () => string };
 
@@ -98,7 +99,7 @@ export async function run(ctx: Ctx, path: string, body: any): Promise<void> {
  */
 export function parseJsonInput(value: string): unknown {
   if (value.startsWith("@")) {
-    return JSON.parse(Bun.file(value.slice(1)).textSync());
+    return JSON.parse(readFileSync(value.slice(1), "utf8"));
   }
   try {
     return JSON.parse(value);

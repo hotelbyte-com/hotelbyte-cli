@@ -5,6 +5,8 @@
  * consumption; otherwise pretty-print for humans.
  */
 
+import { readFileSync } from "node:fs";
+
 export function emit(data: unknown, jsonMode: boolean): void {
   if (jsonMode) {
     console.log(JSON.stringify(data));
@@ -30,7 +32,7 @@ export function error(msg: string, jsonMode = false): void {
  */
 export function parseJsonInput(value: string): unknown {
   if (value.startsWith("@")) {
-    return JSON.parse(Bun.file(value.slice(1)).textSync());
+    return JSON.parse(readFileSync(value.slice(1), "utf8"));
   }
   try {
     return JSON.parse(value);

@@ -1,12 +1,12 @@
 # staicli (hbcli)
 
-> HotelByte CLI — search hotels, manage bookings, run your travel business from the terminal. Built with Bun + TypeScript, distributed as self-contained native binaries (Claude Code style).
+> HotelByte CLI — search hotels, manage bookings, run your travel business from the terminal. Distributed two ways: a pure-JS npm package (needs Node ≥ 20) and self-contained native binaries (no runtime required).
 
 **Brand:** staicli  ·  **Command:** `hbcli`
 
 ## What
 
-A single CLI binary that wraps the HotelByte HTTP API with a flat, business-oriented command tree:
+A single CLI that wraps the HotelByte HTTP API with a flat, business-oriented command tree:
 
 ```
 hbcli search hotel-list ...       # Search hotels
@@ -25,11 +25,15 @@ Every command supports `--json` for structured agent consumption.
 
 ## Install
 
+Two delivery tracks:
+
 ```bash
+# A. npm(纯 JS,需 Node ≥ 20)
+npm install -g staicli
+
+# B. 原生二进制(无 Node/Bun 运行时依赖)
 curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/install.sh | bash
 ```
-
-Pre-compiled native binary — **no Python, Node, or Bun runtime required**.
 
 ### Verify
 
@@ -42,6 +46,7 @@ hbcli --help
 
 ```bash
 hbcli update
+npm update -g staicli   # npm track
 
 curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/uninstall.sh | bash
 # With --purge to remove credentials:
@@ -126,6 +131,10 @@ hbcli
 ## Installation Layout
 
 ```
+# npm track:npm 全局安装,由 npm 管理(在 PATH 的 npm prefix bin)
+npm root -g   # → node_modules/staicli/dist/cli.js
+
+# native track:install.sh 安装的版本化布局
 ~/.staicli/
 ├── versions/0.0.1/hbcli            # native binary
 ├── current → versions/0.0.1         # symlink
@@ -133,6 +142,8 @@ hbcli
 
 ~/.local/bin/hbcli → ~/.staicli/versions/0.0.1/hbcli
 ```
+
+两条轨共用同一个 credential store(`~/.staicli/credentials.json`),切换安装方式不影响已存凭证。
 
 ## Tests
 
