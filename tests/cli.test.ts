@@ -45,7 +45,7 @@ describe("Top-level CLI", () => {
   it("--version should show version", () => {
     const { stdout, exitCode } = runCli(["--version"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("0.0.2");
+    expect(stdout).toContain("0.0.3");
   });
 });
 
