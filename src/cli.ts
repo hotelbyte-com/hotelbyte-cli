@@ -27,7 +27,7 @@ import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
 
-const VERSION = "0.0.2";
+const VERSION = "0.0.3";
 
 // ── self-update ────────────────────────────────────────────────────────
 
