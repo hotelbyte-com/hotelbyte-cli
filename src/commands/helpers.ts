@@ -19,21 +19,49 @@ import { emit, error } from "../utils/output.ts";
 
 export type Ctx = { jsonMode: () => boolean; env: () => string };
 
+// A literal "stored-ticket" placeholder was historically saved before portal login completed.
+// Treat it as no ticket so authenticatePortal actually re-issues one.
+function isUsableTicket(t: string | undefined): boolean {
+  return !!t && t !== "stored-ticket";
+}
+
 /**
  * Build an authenticated HttpClient.
  * Auto-detects auth mode from stored credentials.
+ *
+ * Auth precedence:
+ *   1. portal profile with a valid cached ticket → use portal (admin context)
+ *   2. openapi profile (appKey/appSecret or cached ticket) → use openapi
+ *   3. portal profile but portal login unavailable or yields no usable ticket →
+ *      fall back to openapi rather than sending an invalid bearer token
+ *      (this was the source of false-positive 401s against @permission: openapi endpoints).
  */
 export async function makeClient(ctx: Ctx): Promise<HttpClient> {
   const env = ctx.env();
   const portalProfile = loadProfile("portal", env);
   const apiProfile = loadProfile("openapi", env);
 
-  // Prefer portal if configured (admin context sees more)
-  if (portalProfile.username || portalProfile.ticket) {
-    await authenticatePortal(portalProfile);
+  const hasOpenapi = !!(apiProfile.appKey || isUsableTicket(apiProfile.ticket));
+  const hasPortalCreds = !!(portalProfile.username || isUsableTicket(portalProfile.ticket));
+
+  // Prefer portal if it has a usable ticket cached.
+  if (hasPortalCreds && isUsableTicket(portalProfile.ticket)) {
     return new HttpClient(portalProfile);
   }
-  if (apiProfile.appKey || apiProfile.ticket) {
+
+  // Try portal auth only if creds exist but ticket isn't usable yet.
+  if (hasPortalCreds && !isUsableTicket(portalProfile.ticket)) {
+    try {
+      await authenticatePortal(portalProfile);
+      if (isUsableTicket(portalProfile.ticket)) {
+        return new HttpClient(portalProfile);
+      }
+    } catch {
+      // Fall through to openapi fallback.
+    }
+  }
+
+  if (hasOpenapi) {
     await authenticateOpenapi(apiProfile);
     return new HttpClient(apiProfile);
   }
