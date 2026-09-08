@@ -13,7 +13,7 @@
  */
 
 import { Command, Option } from "commander";
-import { DEFAULT_ENV, ENVIRONMENTS, STAICLI_HOME } from "./core/config.ts";
+import { DEFAULT_ENV, ENVIRONMENTS, staicliHome } from "./core/config.ts";
 import { getState } from "./core/state.ts";
 import { runRepl } from "./utils/repl.ts";
 import { createAuthCommand } from "./commands/auth.ts";
@@ -64,7 +64,7 @@ async function selfUpdate(jsonMode: boolean): Promise<void> {
 
     const { join } = await import("node:path");
     const { existsSync, mkdirSync, writeFileSync, chmodSync, symlinkSync, unlinkSync } = await import("node:fs");
-    const installDir = STAICLI_HOME;
+    const installDir = staicliHome();
     const versionDir = join(installDir, "versions", latest);
     mkdirSync(versionDir, { recursive: true });
     const binaryPath = join(versionDir, "hbcli");
@@ -101,7 +101,7 @@ async function selfUpdate(jsonMode: boolean): Promise<void> {
 function showVersion(): void {
   console.log(`hbcli (staicli) ${VERSION}`);
   console.log(`  binary: ${process.execPath ?? "(unknown)"}`);
-  console.log(`  home:   ${STAICLI_HOME}`);
+  console.log(`  home:   ${staicliHome()}`);
 }
 
 // ── main ───────────────────────────────────────────────────────────────

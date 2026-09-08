@@ -24,9 +24,16 @@ export const DEFAULT_ENV = process.env.HOTELBYTE_ENV ?? "uat";
 
 // ── credential store ────────────────────────────────────────────────────
 
-export const STAICLI_HOME =
-  process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
-const CRED_FILE = join(STAICLI_HOME, "credentials.json");
+// Resolved per-call (not at module load) so tests can redirect the store via
+// process.env.STAICLI_HOME at runtime — a module-load constant made test
+// fixtures leak into the real ~/.staicli/credentials.json (issue: key123/tok456
+// pollution discovered 2026-09-08).
+export function staicliHome(): string {
+  return process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
+}
+function credFile(): string {
+  return join(staicliHome(), "credentials.json");
+}
 
 // ── profile ─────────────────────────────────────────────────────────────
 
@@ -58,19 +65,20 @@ interface StoreData {
 }
 
 function loadStore(): StoreData {
-  if (!existsSync(CRED_FILE)) return {};
+  const file = credFile();
+  if (!existsSync(file)) return {};
   try {
-    return JSON.parse(readFileSync(CRED_FILE, "utf-8"));
+    return JSON.parse(readFileSync(file, "utf-8"));
   } catch {
     return {};
   }
 }
 
 function saveStore(data: StoreData): void {
-  mkdirSync(STAICLI_HOME, { recursive: true });
-  writeFileSync(CRED_FILE, JSON.stringify(data, null, 2));
+  mkdirSync(staicliHome(), { recursive: true });
+  writeFileSync(credFile(), JSON.stringify(data, null, 2));
   try {
-    chmodSync(CRED_FILE, 0o600);
+    chmodSync(credFile(), 0o600);
   } catch {
     // non-POSIX FS
   }
