@@ -41,6 +41,7 @@ export async function makeClient(ctx: Ctx): Promise<HttpClient> {
   const env = ctx.env();
   const portalProfile = loadProfile("portal", env);
   const apiProfile = loadProfile("openapi", env);
+  const customerProfile = loadProfile("customer", env);
 
   const hasOpenapi = !!(apiProfile.appKey || isUsableTicket(apiProfile.ticket));
   const hasPortalCreds = !!(portalProfile.username || isUsableTicket(portalProfile.ticket));
@@ -67,11 +68,20 @@ export async function makeClient(ctx: Ctx): Promise<HttpClient> {
     return new HttpClient(apiProfile);
   }
 
+  // Customer session (C 端, advisor 的客户): lowest precedence — a one-shot
+  // email code is the only credential, so there is no re-auth path; use the
+  // cached ticket when no portal/openapi credentials exist.
+  if (isUsableTicket(customerProfile.ticket)) {
+    return new HttpClient(customerProfile);
+  }
+
   throw new HotelByteError(
     401,
     "No credentials found. Run:\n" +
       "  hbcli auth set-credentials --app-key YOUR_KEY --app-secret YOUR_SECRET  (API key mode)\n" +
       "  hbcli auth login --username admin@example.com                          (portal mode)\n" +
+      "  hbcli auth register --email you@corp.com ...                           (register a new tenant)\n" +
+      "  hbcli auth customer-login --email guest@mail.com --code 123456         (customer mode)\n" +
       "Or set env vars: HOTELBYTE_APP_KEY/HOTELBYTE_APP_SECRET, HOTELBYTE_USERNAME/HOTELBYTE_PASSWORD",
     "auth",
   );

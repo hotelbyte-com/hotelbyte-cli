@@ -149,6 +149,50 @@ describe("Auth commands", () => {
     expect(stdout).toContain("whoami");
     expect(stdout).toContain("logout");
   });
+
+  it("auth --help should list registration subcommands (issue #14)", () => {
+    const { stdout, exitCode } = runCli(["auth", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("send-code");
+    expect(stdout).toContain("check-domain");
+    expect(stdout).toContain("register");
+    expect(stdout).toContain("customer-send-code");
+    expect(stdout).toContain("customer-login");
+  });
+
+  it("auth register --help should list tenant-registration flags", () => {
+    const { stdout, exitCode } = runCli(["auth", "register", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--email");
+    expect(stdout).toContain("--password");
+    expect(stdout).toContain("--tenant-name");
+    expect(stdout).toContain("--otp-code");
+    expect(stdout).toContain("--tenant-domain");
+    expect(stdout).toContain("--module");
+  });
+
+  it("auth customer-login --help should list customer email-code flags", () => {
+    const { stdout, exitCode } = runCli(["auth", "customer-login", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--email");
+    expect(stdout).toContain("--code");
+    expect(stdout).toContain("--ttl");
+    expect(stdout).toContain("--attribution-token");
+  });
+
+  it("auth register with a short password should fail fast without a network call", () => {
+    const home = mkdtempSync(join(tmpdir(), "hbcli-register-test-"));
+    try {
+      const { stderr, exitCode } = runCliWithEnv(
+        ["--json", "auth", "register", "--email", "a@b.com", "--password", "short", "--tenant-name", "T", "--otp-code", "123456", "--env", "dev"],
+        { ...process.env, STAICLI_HOME: home },
+      );
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain("password must be at least 8 characters");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
 });
 describe("room-occupancies runtime wiring (CLI action path)", () => {
   it("string adultCount reaches the action without ReferenceError (import wired; failure must be auth/network, never a module bug)", () => {

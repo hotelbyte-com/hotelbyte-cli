@@ -20,6 +20,7 @@ hbcli account subscriptions get   # Check subscription
 Auth is **auto-detected** — no profile switching:
 - Stored API key → ticket flow (for integrators)
 - Stored portal login → session flow (for admins)
+- Stored customer session → customer email-code flow (C 端, advisor 的客户)
 
 Every command supports `--json` for structured agent consumption.
 
@@ -83,7 +84,14 @@ hbcli trade book \
 ### As an admin (portal mode)
 
 ```bash
-# Login
+# Register a new tenant (email + OTP code; auto-login on success)
+hbcli auth check-domain --email you@corp.com          # optional pre-flight
+hbcli auth send-code --email you@corp.com             # step 1: OTP to your inbox
+hbcli auth register --email you@corp.com \
+  --password 'AtLeast8Chars' --tenant-name "My Travel" --otp-code 123456
+# ^ step 2: register + auto-login (ticket saved as the portal profile)
+
+# ...or login with an existing account
 hbcli auth login --username admin@example.com
 
 # List orders
@@ -98,6 +106,21 @@ hbcli account subscriptions get
 hbcli account subscriptions catalog
 ```
 
+### As a customer (C 端, advisor 的客户)
+
+```bash
+# Email + code login; a NEW email is auto-registered (no password needed)
+hbcli auth customer-send-code --email guest@mail.com
+hbcli auth customer-login --email guest@mail.com --code 123456
+
+# With advisor attribution (binds you to the advisor's client book)
+hbcli auth customer-login --email guest@mail.com --code 123456 --attribution-token 'v2.u...'
+
+# Then search/book with the customer session (lowest auth precedence:
+# it applies only when no portal/API-key credentials are stored)
+hbcli --json search destinations --country-code US
+```
+
 ### Agent-friendly
 
 ```bash
@@ -109,7 +132,9 @@ hbcli trade book --guests @guests.json --holder @holder.json --rate-pkg-id "rate
 
 ```
 hbcli
-├── auth              set-credentials, login, logout, whoami
+├── auth              set-credentials, login, logout, whoami,
+│                     send-code, check-domain, register (B 端 tenant self-registration),
+│                     customer-send-code, customer-login (C 端 email-code login/register)
 ├── search            hotel-list, hotel-rates, destinations, check-avail, hotel-detail, hotels-metadata
 ├── trade             book, cancel, query-orders, update-order
 ├── orders            list, detail, dashboard, label, cancel, create-offline-booking, rebooking-pending
@@ -149,7 +174,7 @@ npm root -g   # → node_modules/staicli/dist/cli.js
 
 ```bash
 bun install
-bun test    # 23 tests
+bun test
 ```
 
 ## License
