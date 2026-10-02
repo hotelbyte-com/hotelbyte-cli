@@ -152,6 +152,7 @@ The CLI maps profile commands to backend paths:
 | `auth register` | `POST /api/registration/registerTenant` |
 | `auth customer-send-code` | `POST /api/auth/sendCustomerLoginCode` |
 | `auth customer-login` | `POST /api/auth/loginByCustomerEmailCode` |
+| `fx rates` | `POST /api/fx/rates` |
 | `portal orders list` | `POST /api/trade/tenant/listOrder` |
 | `portal orders detail` | `POST /api/trade/tenant/detailOrder` |
 | `portal orders home` | `POST /api/trade/tenant/orderHomeFunction` |

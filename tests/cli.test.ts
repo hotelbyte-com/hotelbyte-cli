@@ -45,7 +45,7 @@ describe("Top-level CLI", () => {
   it("--version should show version", () => {
     const { stdout, exitCode } = runCli(["--version"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("0.0.3");
+    expect(stdout).toContain("0.0.4");
   });
 });
 
@@ -137,6 +137,21 @@ describe("Account commands", () => {
     expect(stdout).toContain("get");
     expect(stdout).toContain("catalog");
     expect(stdout).toContain("invoices");
+  });
+});
+
+describe("FX commands", () => {
+  it("fx --help should list fx subcommands", () => {
+    const { stdout, exitCode } = runCli(["fx", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("rates");
+  });
+
+  it("fx rates --help should list reference-rates flags", () => {
+    const { stdout, exitCode } = runCli(["fx", "rates", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--base");
+    expect(stdout).toContain("--currency");
   });
 });
 
