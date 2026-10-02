@@ -26,7 +26,14 @@ export const DEFAULT_ENV = process.env.HOTELBYTE_ENV ?? "uat";
 
 export const STAICLI_HOME =
   process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
-const CRED_FILE = join(STAICLI_HOME, "credentials.json");
+
+// Credential-store path is resolved per call, NOT at module load: tests set
+// process.env.STAICLI_HOME in beforeEach, and a module-level constant would
+// pin the first-seen home and silently write fixtures into the real store.
+function credFile(): string {
+  const home = process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
+  return join(home, "credentials.json");
+}
 
 // ── profile ─────────────────────────────────────────────────────────────
 
@@ -58,9 +65,9 @@ interface StoreData {
 }
 
 function loadStore(): StoreData {
-  if (!existsSync(CRED_FILE)) return {};
+  if (!existsSync(credFile())) return {};
   try {
-    return JSON.parse(readFileSync(CRED_FILE, "utf-8"));
+    return JSON.parse(readFileSync(credFile(), "utf-8"));
   } catch {
     return {};
   }
@@ -68,9 +75,9 @@ function loadStore(): StoreData {
 
 function saveStore(data: StoreData): void {
   mkdirSync(STAICLI_HOME, { recursive: true });
-  writeFileSync(CRED_FILE, JSON.stringify(data, null, 2));
+  writeFileSync(credFile(), JSON.stringify(data, null, 2));
   try {
-    chmodSync(CRED_FILE, 0o600);
+    chmodSync(credFile(), 0o600);
   } catch {
     // non-POSIX FS
   }

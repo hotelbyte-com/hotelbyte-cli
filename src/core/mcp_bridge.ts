@@ -17,9 +17,16 @@
  * `id`) yield exactly one response line; notifications yield none.
  */
 
-import { loadProfile, type Profile } from "./config.ts";
-import { authenticateOpenapi, authenticatePortal } from "./auth.ts";
-import { HotelByteError } from "./http.ts";
+import { loadProfile, saveProfile, type Profile } from "./config.ts";
+import { authenticateOpenapi, authenticatePortal, extractTicket } from "./auth.ts";
+import { HttpClient, HotelByteError } from "./http.ts";
+
+/**
+ * Default idle window for agent static tokens: 30 days without a single call
+ * before the ticket dies (absolute lifetime is server-capped at 365 days).
+ * Long enough for weekly-scheduled agents, short enough to limit key drift.
+ */
+export const DEFAULT_AGENT_IDLE_SECONDS = 30 * 24 * 3600;
 
 export interface BridgeOptions {
   /** Remote /mcp endpoint; defaults to `<baseUrl>/mcp` of the active env. */
@@ -54,6 +61,40 @@ export async function getBearerTicket(env: string): Promise<{ token: string; pro
 export function resolveEndpoint(profile: Profile, override?: string): string {
   if (override) return override;
   return `${profile.baseUrl.replace(/\/+$/, "")}/mcp`;
+}
+
+/**
+ * Issue a static agent token: exchange the stored appKey/appSecret for a
+ * long-idle ticket via POST /api/auth/ticket, store it back into the
+ * credential store (so `mcp serve` rides it too), and return it for pasting
+ * into remote agent configs.
+ *
+ * Server contract (hotel-be api/service/auth.go Ticket):
+ *   - portal credentials are rejected here on purpose (openapi-only surface)
+ *   - ticket TTL = idle-timeout seconds; absolute lifetime hard-capped at
+ *     365 days for API users regardless of the requested TTL
+ *   - revocation: freeze/delete the API user, or logout with the token
+ */
+export async function issueAgentToken(env: string, idleSeconds?: number): Promise<{ token: string; endpoint: string }> {
+  const api = loadProfile("openapi", env);
+  if (!api.appKey || !api.appSecret) {
+    throw new HotelByteError(
+      401,
+      "Static agent tokens are issued from API credentials. Run:\n" +
+        "  hbcli auth set-credentials --app-key YOUR_KEY --app-secret YOUR_SECRET",
+      "/api/auth/ticket",
+    );
+  }
+  const body: Record<string, unknown> = { appKey: api.appKey, appSecret: api.appSecret };
+  const idle = idleSeconds ?? DEFAULT_AGENT_IDLE_SECONDS;
+  if (idle > 0) body.ttl = idle;
+
+  const client = new HttpClient(api);
+  const resp = await client.post("/api/auth/ticket", body);
+  const ticket = extractTicket(resp);
+  api.ticket = ticket;
+  saveProfile(api);
+  return { token: ticket, endpoint: resolveEndpoint(api) };
 }
 
 /** One forwarded stdin line → zero or more stdout lines. */
