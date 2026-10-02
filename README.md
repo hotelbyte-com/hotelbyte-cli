@@ -131,6 +131,47 @@ hbcli trade book --guests @guests.json --holder @holder.json --rate-pkg-id "rate
 hbcli --json fx rates --base USD --currency CNY --currency EUR
 ```
 
+### MCP gateway (AI agents)
+
+`hbcli mcp serve` runs a local stdio MCP gateway that forwards JSON-RPC
+verbatim to the hosted `/mcp` endpoint. One binary = CLI + local MCP gateway.
+
+```bash
+hbcli mcp serve                  # stored credentials, current --env
+hbcli mcp serve --env uat        # sandbox
+hbcli mcp serve --url https://... --token ...   # CI / override
+```
+
+Agent config (Claude Code `.mcp.json`, Cursor, Codex):
+
+```json
+{ "mcpServers": { "hotelbyte": { "command": "hbcli", "args": ["mcp", "serve"] } } }
+```
+
+- Zero secrets in agent config — the ticket stays in the CLI credential store (chmod 600); agent config holds only the command line.
+- Transport-only bridge: tool schemas always come from the remote `tools/list`; the gateway never hardcodes them (no drift).
+- Diagnostics go to stderr; stdout is the protocol channel.
+
+### Static agent tokens (hosted platforms)
+
+For agents that run where you cannot install binaries (Claude web connectors,
+ChatGPT plugins, cloud functions, CI), issue a static token and put it in the
+config:
+
+```bash
+hbcli mcp token                       # 30-day idle window by default
+hbcli mcp token --idle-seconds 3600   # custom idle window
+```
+
+- The token is a long-idle API ticket: it dies only after the idle window
+  passes with zero calls; absolute lifetime is server-capped at 365 days.
+- It is also stored in the CLI credential store, so `hbcli mcp serve` rides
+  the same token.
+- Requires API credentials (`hbcli auth set-credentials`); portal accounts
+  are rejected by the ticket endpoint on purpose.
+- Revoke: freeze or delete the API user in the portal. Treat the token like
+  a password.
+
 ## Command Tree
 
 ```
@@ -145,6 +186,7 @@ hbcli
 ├── account           entity, subscriptions, suppliers, retail
 ├── view              homepage, retail-homepage
 ├── fx                rates (daily FX reference table, read-only)
+├── mcp               serve (local stdio gateway), token (static agent token)
 ├── version           Show version and install path
 └── update            Self-update to latest release
 ```
