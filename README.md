@@ -100,6 +100,27 @@ hbcli --json search destinations --country-code US | jq '.[] | .name'
 hbcli trade book --guests @guests.json --holder @holder.json --rate-pkg-id "rate-456"
 ```
 
+### MCP gateway (AI agents)
+
+`hbcli mcp serve` runs a local stdio MCP gateway that forwards JSON-RPC
+verbatim to the hosted `/mcp` endpoint. One binary = CLI + local MCP gateway.
+
+```bash
+hbcli mcp serve                  # stored credentials, current --env
+hbcli mcp serve --env uat        # sandbox
+hbcli mcp serve --url https://... --token ...   # CI / override
+```
+
+Agent config (Claude Code `.mcp.json`, Cursor, Codex):
+
+```json
+{ "mcpServers": { "hotelbyte": { "command": "hbcli", "args": ["mcp", "serve"] } } }
+```
+
+- Zero secrets in agent config — the ticket stays in the CLI credential store (chmod 600); agent config holds only the command line.
+- Transport-only bridge: tool schemas always come from the remote `tools/list`; the gateway never hardcodes them (no drift).
+- Diagnostics go to stderr; stdout is the protocol channel.
+
 ## Command Tree
 
 ```
@@ -111,6 +132,7 @@ hbcli
 ├── team              list, list-roles, invite, batch-invite, get, update
 ├── account           entity, subscriptions, suppliers, retail
 ├── view              homepage, retail-homepage
+├── mcp               serve (local stdio MCP gateway)
 ├── version           Show version and install path
 └── update            Self-update to latest release
 ```

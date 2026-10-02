@@ -23,6 +23,7 @@ import { createOrdersCommand } from "./commands/orders.ts";
 import { createTeamCommand } from "./commands/team.ts";
 import { createAccountCommand } from "./commands/account.ts";
 import { createViewCommand } from "./commands/view.ts";
+import { createMcpCommand } from "./commands/mcp.ts";
 import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
@@ -141,6 +142,7 @@ function main(): void {
   program.addCommand(createTeamCommand(ctx));
   program.addCommand(createAccountCommand(ctx));
   program.addCommand(createViewCommand(ctx));
+  program.addCommand(createMcpCommand(ctx));
 
   // version / update
   program.command("version").description("Show version and installation path").action(showVersion);
