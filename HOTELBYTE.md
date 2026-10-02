@@ -147,6 +147,11 @@ The CLI maps profile commands to backend paths:
 | `openapi trade query-orders` | `POST /api/trade/queryOrders` |
 | `openapi trade update-order` | `POST /api/trade/updateOrder` |
 | `portal auth login` | `POST /api/auth/login` |
+| `auth send-code` | `POST /api/auth/sendOTP` |
+| `auth check-domain` | `POST /api/registration/checkDomainAvailability` |
+| `auth register` | `POST /api/registration/registerTenant` |
+| `auth customer-send-code` | `POST /api/auth/sendCustomerLoginCode` |
+| `auth customer-login` | `POST /api/auth/loginByCustomerEmailCode` |
 | `portal orders list` | `POST /api/trade/tenant/listOrder` |
 | `portal orders detail` | `POST /api/trade/tenant/detailOrder` |
 | `portal orders home` | `POST /api/trade/tenant/orderHomeFunction` |
