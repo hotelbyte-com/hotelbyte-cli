@@ -126,6 +126,9 @@ hbcli --json search destinations --country-code US
 ```bash
 hbcli --json search destinations --country-code US | jq '.[] | .name'
 hbcli trade book --guests @guests.json --holder @holder.json --rate-pkg-id "rate-456"
+
+# FX reference rates (daily table with provenance: date/base/rates/fetchedAt)
+hbcli --json fx rates --base USD --currency CNY --currency EUR
 ```
 
 ## Command Tree
@@ -141,6 +144,7 @@ hbcli
 ├── team              list, list-roles, invite, batch-invite, get, update
 ├── account           entity, subscriptions, suppliers, retail
 ├── view              homepage, retail-homepage
+├── fx                rates (daily FX reference table, read-only)
 ├── version           Show version and install path
 └── update            Self-update to latest release
 ```

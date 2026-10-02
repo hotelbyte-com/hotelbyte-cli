@@ -23,11 +23,12 @@ import { createOrdersCommand } from "./commands/orders.ts";
 import { createTeamCommand } from "./commands/team.ts";
 import { createAccountCommand } from "./commands/account.ts";
 import { createViewCommand } from "./commands/view.ts";
+import { createFxCommand } from "./commands/fx.ts";
 import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
 
-const VERSION = "0.0.3";
+const VERSION = "0.0.4";
 
 // ── self-update ────────────────────────────────────────────────────────
 
@@ -141,6 +142,7 @@ function main(): void {
   program.addCommand(createTeamCommand(ctx));
   program.addCommand(createAccountCommand(ctx));
   program.addCommand(createViewCommand(ctx));
+  program.addCommand(createFxCommand(ctx));
 
   // version / update
   program.command("version").description("Show version and installation path").action(showVersion);
