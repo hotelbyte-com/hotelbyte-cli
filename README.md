@@ -1,12 +1,12 @@
 # staicli (hbcli)
 
-> HotelByte CLI — search hotels, manage bookings, run your travel business from the terminal. Built with Bun + TypeScript, distributed as self-contained native binaries (Claude Code style).
+> HotelByte CLI — search hotels, manage bookings, run your travel business from the terminal. Distributed two ways: a pure-JS npm package (needs Node ≥ 20) and self-contained native binaries (no runtime required).
 
 **Brand:** staicli  ·  **Command:** `hbcli`
 
 ## What
 
-A single CLI binary that wraps the HotelByte HTTP API with a flat, business-oriented command tree:
+A single CLI that wraps the HotelByte HTTP API with a flat, business-oriented command tree:
 
 ```
 hbcli search hotel-list ...       # Search hotels
@@ -20,16 +20,21 @@ hbcli account subscriptions get   # Check subscription
 Auth is **auto-detected** — no profile switching:
 - Stored API key → ticket flow (for integrators)
 - Stored portal login → session flow (for admins)
+- Stored customer session → customer email-code flow (C 端, advisor 的客户)
 
 Every command supports `--json` for structured agent consumption.
 
 ## Install
 
+Two delivery tracks:
+
 ```bash
+# A. npm(纯 JS,需 Node ≥ 20)
+npm install -g staicli
+
+# B. 原生二进制(无 Node/Bun 运行时依赖)
 curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/install.sh | bash
 ```
-
-Pre-compiled native binary — **no Python, Node, or Bun runtime required**.
 
 ### Verify
 
@@ -42,6 +47,7 @@ hbcli --help
 
 ```bash
 hbcli update
+npm update -g staicli   # npm track
 
 curl -fsSL https://github.com/hotelbyte-com/docs/releases/latest/download/uninstall.sh | bash
 # With --purge to remove credentials:
@@ -78,7 +84,14 @@ hbcli trade book \
 ### As an admin (portal mode)
 
 ```bash
-# Login
+# Register a new tenant (email + OTP code; auto-login on success)
+hbcli auth check-domain --email you@corp.com          # optional pre-flight
+hbcli auth send-code --email you@corp.com             # step 1: OTP to your inbox
+hbcli auth register --email you@corp.com \
+  --password 'AtLeast8Chars' --tenant-name "My Travel" --otp-code 123456
+# ^ step 2: register + auto-login (ticket saved as the portal profile)
+
+# ...or login with an existing account
 hbcli auth login --username admin@example.com
 
 # List orders
@@ -93,11 +106,29 @@ hbcli account subscriptions get
 hbcli account subscriptions catalog
 ```
 
+### As a customer (C 端, advisor 的客户)
+
+```bash
+# Email + code login; a NEW email is auto-registered (no password needed)
+hbcli auth customer-send-code --email guest@mail.com
+hbcli auth customer-login --email guest@mail.com --code 123456
+
+# With advisor attribution (binds you to the advisor's client book)
+hbcli auth customer-login --email guest@mail.com --code 123456 --attribution-token 'v2.u...'
+
+# Then search/book with the customer session (lowest auth precedence:
+# it applies only when no portal/API-key credentials are stored)
+hbcli --json search destinations --country-code US
+```
+
 ### Agent-friendly
 
 ```bash
 hbcli --json search destinations --country-code US | jq '.[] | .name'
 hbcli trade book --guests @guests.json --holder @holder.json --rate-pkg-id "rate-456"
+
+# FX reference rates (daily table with provenance: date/base/rates/fetchedAt)
+hbcli --json fx rates --base USD --currency CNY --currency EUR
 ```
 
 ### MCP gateway (AI agents)
@@ -145,13 +176,16 @@ hbcli mcp token --idle-seconds 3600   # custom idle window
 
 ```
 hbcli
-├── auth              set-credentials, login, logout, whoami
+├── auth              set-credentials, login, logout, whoami,
+│                     send-code, check-domain, register (B 端 tenant self-registration),
+│                     customer-send-code, customer-login (C 端 email-code login/register)
 ├── search            hotel-list, hotel-rates, destinations, check-avail, hotel-detail, hotels-metadata
 ├── trade             book, cancel, query-orders, update-order
 ├── orders            list, detail, dashboard, label, cancel, create-offline-booking, rebooking-pending
 ├── team              list, list-roles, invite, batch-invite, get, update
 ├── account           entity, subscriptions, suppliers, retail
 ├── view              homepage, retail-homepage
+├── fx                rates (daily FX reference table, read-only)
 ├── mcp               serve (local stdio gateway), token (static agent token)
 ├── version           Show version and install path
 └── update            Self-update to latest release
@@ -168,6 +202,10 @@ hbcli
 ## Installation Layout
 
 ```
+# npm track:npm 全局安装,由 npm 管理(在 PATH 的 npm prefix bin)
+npm root -g   # → node_modules/staicli/dist/cli.js
+
+# native track:install.sh 安装的版本化布局
 ~/.staicli/
 ├── versions/0.0.1/hbcli            # native binary
 ├── current → versions/0.0.1         # symlink
@@ -176,11 +214,13 @@ hbcli
 ~/.local/bin/hbcli → ~/.staicli/versions/0.0.1/hbcli
 ```
 
+两条轨共用同一个 credential store(`~/.staicli/credentials.json`),切换安装方式不影响已存凭证。
+
 ## Tests
 
 ```bash
 bun install
-bun test    # 23 tests
+bun test
 ```
 
 ## License

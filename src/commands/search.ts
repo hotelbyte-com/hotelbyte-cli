@@ -1,6 +1,7 @@
 /**
  * commands/search.ts — hotel search commands.
  *
+ * search anything         Universal mixed search (cities + hotels)
  * search hotel-list       Search hotels across a destination
  * search hotel-rates      Get rates for a specific hotel
  * search destinations     List destination regions
@@ -15,6 +16,21 @@ import { normalizeRoomOccupancies } from "../utils/output.ts";
 
 export function createSearchCommand(ctx: Ctx): Command {
   const search = new Command("search").description("Search hotels, destinations, and rates");
+
+  search
+    .command("anything")
+    .description("Universal mixed search across destinations and hotels (cities, places, hotels in one call)")
+    .argument("<keyword>", "Search keyword, e.g. \"Dali\" or \"Hilton\"")
+    .option("--content-type <type>", "Restrict result type: city|place|hotel (default: mixed)")
+    .option("--destination-id <id>", "Scope results to a parent destination region ID")
+    .option("--min-hotel-count <n>", "Minimum hotel count for city candidates (default: 1)", parseInt)
+    .action(async (keyword, opts) => {
+      const body: any = { keyword };
+      if (opts.contentType) body.contentType = opts.contentType;
+      if (opts.destinationId) body.context = { destinationId: opts.destinationId };
+      if (opts.minHotelCount !== undefined) body.minHotelCount = opts.minHotelCount;
+      await run(ctx, "/api/search/anything", body);
+    });
 
   search
     .command("hotel-list")

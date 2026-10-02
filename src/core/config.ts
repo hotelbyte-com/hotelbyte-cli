@@ -24,21 +24,25 @@ export const DEFAULT_ENV = process.env.HOTELBYTE_ENV ?? "uat";
 
 // ── credential store ────────────────────────────────────────────────────
 
-export const STAICLI_HOME =
-  process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
-
-// Credential-store path is resolved per call, NOT at module load: tests set
-// process.env.STAICLI_HOME in beforeEach, and a module-level constant would
-// pin the first-seen home and silently write fixtures into the real store.
+// Resolved per-call (not at module load) so tests can redirect the store via
+// process.env.STAICLI_HOME at runtime — a module-load constant made test
+// fixtures leak into the real ~/.staicli/credentials.json (issue: key123/tok456
+// pollution discovered 2026-09-08).
+export function staicliHome(): string {
+  return process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
+}
 function credFile(): string {
-  const home = process.env.STAICLI_HOME ?? process.env.HOTELBYTE_HOME ?? join(homedir(), ".staicli");
-  return join(home, "credentials.json");
+  return join(staicliHome(), "credentials.json");
 }
 
 // ── profile ─────────────────────────────────────────────────────────────
 
+// "customer" = C 端邮箱验证码登录档（advisor 的客户；新邮箱即注册）。
+// 无密码/无 env 凭据回退——一次性验证码换取的 ticket 是唯一凭据。
+export type ProfileName = "openapi" | "portal" | "customer";
+
 export interface Profile {
-  name: "openapi" | "portal";
+  name: ProfileName;
   env: string;
   baseUrl: string;
   appKey?: string;
@@ -65,16 +69,17 @@ interface StoreData {
 }
 
 function loadStore(): StoreData {
-  if (!existsSync(credFile())) return {};
+  const file = credFile();
+  if (!existsSync(file)) return {};
   try {
-    return JSON.parse(readFileSync(credFile(), "utf-8"));
+    return JSON.parse(readFileSync(file, "utf-8"));
   } catch {
     return {};
   }
 }
 
 function saveStore(data: StoreData): void {
-  mkdirSync(STAICLI_HOME, { recursive: true });
+  mkdirSync(staicliHome(), { recursive: true });
   writeFileSync(credFile(), JSON.stringify(data, null, 2));
   try {
     chmodSync(credFile(), 0o600);
@@ -96,7 +101,7 @@ export function saveProfile(profile: Profile): void {
   saveStore(store);
 }
 
-export function loadProfile(name: "openapi" | "portal", env: string = DEFAULT_ENV): Profile {
+export function loadProfile(name: ProfileName, env: string = DEFAULT_ENV): Profile {
   const store = loadStore();
   const key = `${name}:${env}`;
   const saved = store[key] ?? {};
@@ -116,7 +121,7 @@ export function loadProfile(name: "openapi" | "portal", env: string = DEFAULT_EN
   };
 }
 
-export function clearTicket(name: "openapi" | "portal", env: string = DEFAULT_ENV): void {
+export function clearTicket(name: ProfileName, env: string = DEFAULT_ENV): void {
   const store = loadStore();
   const key = `${name}:${env}`;
   if (store[key]) {

@@ -13,7 +13,7 @@
  */
 
 import { Command, Option } from "commander";
-import { DEFAULT_ENV, ENVIRONMENTS, STAICLI_HOME } from "./core/config.ts";
+import { DEFAULT_ENV, ENVIRONMENTS, staicliHome } from "./core/config.ts";
 import { getState } from "./core/state.ts";
 import { runRepl } from "./utils/repl.ts";
 import { createAuthCommand } from "./commands/auth.ts";
@@ -23,12 +23,13 @@ import { createOrdersCommand } from "./commands/orders.ts";
 import { createTeamCommand } from "./commands/team.ts";
 import { createAccountCommand } from "./commands/account.ts";
 import { createViewCommand } from "./commands/view.ts";
+import { createFxCommand } from "./commands/fx.ts";
 import { createMcpCommand } from "./commands/mcp.ts";
 import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
 
-const VERSION = "0.0.2";
+const VERSION = "0.0.4";
 
 // ── self-update ────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ async function selfUpdate(jsonMode: boolean): Promise<void> {
 
     const { join } = await import("node:path");
     const { existsSync, mkdirSync, writeFileSync, chmodSync, symlinkSync, unlinkSync } = await import("node:fs");
-    const installDir = STAICLI_HOME;
+    const installDir = staicliHome();
     const versionDir = join(installDir, "versions", latest);
     mkdirSync(versionDir, { recursive: true });
     const binaryPath = join(versionDir, "hbcli");
@@ -102,7 +103,7 @@ async function selfUpdate(jsonMode: boolean): Promise<void> {
 function showVersion(): void {
   console.log(`hbcli (staicli) ${VERSION}`);
   console.log(`  binary: ${process.execPath ?? "(unknown)"}`);
-  console.log(`  home:   ${STAICLI_HOME}`);
+  console.log(`  home:   ${staicliHome()}`);
 }
 
 // ── main ───────────────────────────────────────────────────────────────
@@ -142,6 +143,7 @@ function main(): void {
   program.addCommand(createTeamCommand(ctx));
   program.addCommand(createAccountCommand(ctx));
   program.addCommand(createViewCommand(ctx));
+  program.addCommand(createFxCommand(ctx));
   program.addCommand(createMcpCommand(ctx));
 
   // version / update

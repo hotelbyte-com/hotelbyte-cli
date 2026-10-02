@@ -45,7 +45,7 @@ describe("Top-level CLI", () => {
   it("--version should show version", () => {
     const { stdout, exitCode } = runCli(["--version"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("0.0.1");
+    expect(stdout).toContain("0.0.4");
   });
 });
 
@@ -53,11 +53,34 @@ describe("Search commands", () => {
   it("search --help should list all search subcommands", () => {
     const { stdout, exitCode } = runCli(["search", "--help"]);
     expect(exitCode).toBe(0);
+    expect(stdout).toContain("anything");
     expect(stdout).toContain("hotel-list");
     expect(stdout).toContain("hotel-rates");
     expect(stdout).toContain("destinations");
     expect(stdout).toContain("check-avail");
     expect(stdout).toContain("hotel-detail");
+  });
+
+  it("search anything --help should list mixed-search flags", () => {
+    const { stdout, exitCode } = runCli(["search", "anything", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("keyword");
+    expect(stdout).toContain("--content-type");
+    expect(stdout).toContain("--destination-id");
+  });
+
+  it("search anything without credentials should fail with auth guidance (parse + wiring OK, never a module bug)", () => {
+    const home = mkdtempSync(join(tmpdir(), "hbcli-anything-test-"));
+    try {
+      const { stderr, exitCode } = runCliWithEnv(["--json", "search", "anything", "Dali"], {
+        ...process.env,
+        STAICLI_HOME: home,
+      });
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain("auth");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });
 
@@ -117,6 +140,21 @@ describe("Account commands", () => {
   });
 });
 
+describe("FX commands", () => {
+  it("fx --help should list fx subcommands", () => {
+    const { stdout, exitCode } = runCli(["fx", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("rates");
+  });
+
+  it("fx rates --help should list reference-rates flags", () => {
+    const { stdout, exitCode } = runCli(["fx", "rates", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--base");
+    expect(stdout).toContain("--currency");
+  });
+});
+
 describe("Auth commands", () => {
   it("auth --help should list auth subcommands", () => {
     const { stdout, exitCode } = runCli(["auth", "--help"]);
@@ -125,6 +163,50 @@ describe("Auth commands", () => {
     expect(stdout).toContain("login");
     expect(stdout).toContain("whoami");
     expect(stdout).toContain("logout");
+  });
+
+  it("auth --help should list registration subcommands (issue #14)", () => {
+    const { stdout, exitCode } = runCli(["auth", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("send-code");
+    expect(stdout).toContain("check-domain");
+    expect(stdout).toContain("register");
+    expect(stdout).toContain("customer-send-code");
+    expect(stdout).toContain("customer-login");
+  });
+
+  it("auth register --help should list tenant-registration flags", () => {
+    const { stdout, exitCode } = runCli(["auth", "register", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--email");
+    expect(stdout).toContain("--password");
+    expect(stdout).toContain("--tenant-name");
+    expect(stdout).toContain("--otp-code");
+    expect(stdout).toContain("--tenant-domain");
+    expect(stdout).toContain("--module");
+  });
+
+  it("auth customer-login --help should list customer email-code flags", () => {
+    const { stdout, exitCode } = runCli(["auth", "customer-login", "--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--email");
+    expect(stdout).toContain("--code");
+    expect(stdout).toContain("--ttl");
+    expect(stdout).toContain("--attribution-token");
+  });
+
+  it("auth register with a short password should fail fast without a network call", () => {
+    const home = mkdtempSync(join(tmpdir(), "hbcli-register-test-"));
+    try {
+      const { stderr, exitCode } = runCliWithEnv(
+        ["--json", "auth", "register", "--email", "a@b.com", "--password", "short", "--tenant-name", "T", "--otp-code", "123456", "--env", "dev"],
+        { ...process.env, STAICLI_HOME: home },
+      );
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain("password must be at least 8 characters");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });
 describe("room-occupancies runtime wiring (CLI action path)", () => {

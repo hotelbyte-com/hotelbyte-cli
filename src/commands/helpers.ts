@@ -12,30 +12,67 @@
  * distinction to the user.
  */
 
-import { loadProfile, type Profile } from "../core/config.ts";
+import { loadProfile, clearTicket, type Profile } from "../core/config.ts";
 import { HttpClient, HotelByteError } from "../core/http.ts";
 import { authenticateOpenapi, authenticatePortal } from "../core/auth.ts";
 import { emit, error } from "../utils/output.ts";
+import { readFileSync } from "node:fs";
 
 export type Ctx = { jsonMode: () => boolean; env: () => string };
+
+// A literal "stored-ticket" placeholder was historically saved before portal login completed.
+// Treat it as no ticket so authenticatePortal actually re-issues one.
+function isUsableTicket(t: string | undefined): boolean {
+  return !!t && t !== "stored-ticket";
+}
 
 /**
  * Build an authenticated HttpClient.
  * Auto-detects auth mode from stored credentials.
+ *
+ * Auth precedence:
+ *   1. portal profile with a valid cached ticket → use portal (admin context)
+ *   2. openapi profile (appKey/appSecret or cached ticket) → use openapi
+ *   3. portal profile but portal login unavailable or yields no usable ticket →
+ *      fall back to openapi rather than sending an invalid bearer token
+ *      (this was the source of false-positive 401s against @permission: openapi endpoints).
  */
 export async function makeClient(ctx: Ctx): Promise<HttpClient> {
   const env = ctx.env();
   const portalProfile = loadProfile("portal", env);
   const apiProfile = loadProfile("openapi", env);
+  const customerProfile = loadProfile("customer", env);
 
-  // Prefer portal if configured (admin context sees more)
-  if (portalProfile.username || portalProfile.ticket) {
-    await authenticatePortal(portalProfile);
+  const hasOpenapi = !!(apiProfile.appKey || isUsableTicket(apiProfile.ticket));
+  const hasPortalCreds = !!(portalProfile.username || isUsableTicket(portalProfile.ticket));
+
+  // Prefer portal if it has a usable ticket cached.
+  if (hasPortalCreds && isUsableTicket(portalProfile.ticket)) {
     return new HttpClient(portalProfile);
   }
-  if (apiProfile.appKey || apiProfile.ticket) {
+
+  // Try portal auth only if creds exist but ticket isn't usable yet.
+  if (hasPortalCreds && !isUsableTicket(portalProfile.ticket)) {
+    try {
+      await authenticatePortal(portalProfile);
+      if (isUsableTicket(portalProfile.ticket)) {
+        return new HttpClient(portalProfile);
+      }
+    } catch {
+      // Fall through to openapi fallback.
+    }
+  }
+
+  if (hasOpenapi) {
     await authenticateOpenapi(apiProfile);
     return new HttpClient(apiProfile);
+  }
+
+  // Customer session (C 端, advisor 的客户): lowest precedence — a one-shot
+  // email code is the only credential, so there is no re-auth path; use the
+  // cached ticket when no portal/openapi credentials exist.
+  if (isUsableTicket(customerProfile.ticket)) {
+    return new HttpClient(customerProfile);
   }
 
   throw new HotelByteError(
@@ -43,6 +80,8 @@ export async function makeClient(ctx: Ctx): Promise<HttpClient> {
     "No credentials found. Run:\n" +
       "  hbcli auth set-credentials --app-key YOUR_KEY --app-secret YOUR_SECRET  (API key mode)\n" +
       "  hbcli auth login --username admin@example.com                          (portal mode)\n" +
+      "  hbcli auth register --email you@corp.com ...                           (register a new tenant)\n" +
+      "  hbcli auth customer-login --email guest@mail.com --code 123456         (customer mode)\n" +
       "Or set env vars: HOTELBYTE_APP_KEY/HOTELBYTE_APP_SECRET, HOTELBYTE_USERNAME/HOTELBYTE_PASSWORD",
     "auth",
   );
@@ -50,11 +89,28 @@ export async function makeClient(ctx: Ctx): Promise<HttpClient> {
 
 /**
  * Run a POST request with auto-auth, emit the result.
+ *
+ * On 401 (HTTP status or biz code 100000401 — http.ts surfaces both as
+ * HotelByteError.status), clear cached tickets and retry once: cached ST
+ * tickets are short-lived, and a stale ticket used verbatim produced
+ * hard-to-diagnose "authentication denied" failures (issue #142 follow-up).
  */
 export async function run(ctx: Ctx, path: string, body: any): Promise<void> {
-  try {
+  const attempt = async () => {
     const client = await makeClient(ctx);
-    const resp = await client.post(path, body);
+    return client.post(path, body);
+  };
+  try {
+    let resp: unknown;
+    try {
+      resp = await attempt();
+    } catch (e: any) {
+      const stale = e instanceof HotelByteError && (e.status === 401 || e.status === 1_00_00_0401);
+      if (!stale) throw e;
+      clearTicket("openapi", ctx.env());
+      clearTicket("portal", ctx.env());
+      resp = await attempt();
+    }
     emit(resp, ctx.jsonMode());
   } catch (e: any) {
     if (e instanceof HotelByteError) {
@@ -70,7 +126,7 @@ export async function run(ctx: Ctx, path: string, body: any): Promise<void> {
  */
 export function parseJsonInput(value: string): unknown {
   if (value.startsWith("@")) {
-    return JSON.parse(Bun.file(value.slice(1)).textSync());
+    return JSON.parse(readFileSync(value.slice(1), "utf8"));
   }
   try {
     return JSON.parse(value);

@@ -1,17 +1,24 @@
 {
   "name": "staicli",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "staicli (hbcli) — HotelByte CLI for hotel search, booking, and tenant management",
   "type": "module",
   "bin": {
-    "hbcli": "src/cli.ts"
+    "hbcli": "dist/cli.js"
   },
+  "main": "dist/cli.js",
+  "files": [
+    "dist/cli.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "bun run src/cli.ts",
+    "build:js": "bun build --target=node --outfile=dist/cli.js src/cli.ts",
     "build": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/hbcli src/cli.ts",
     "build:all": "bun run scripts/build-all.ts",
     "test": "bun test",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build:js"
   },
   "dependencies": {
     "commander": "^12.1.0"
@@ -21,7 +28,7 @@
     "typescript": "^5.5.0"
   },
   "engines": {
-    "bun": ">=1.1.0"
+    "node": ">=20.0.0"
   },
   "license": "MIT",
   "author": "HotelByte"
