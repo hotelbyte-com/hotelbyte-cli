@@ -24,6 +24,7 @@ import {
   issueAgentToken,
   resolveEndpoint,
 } from "../core/mcp_bridge.ts";
+import { DEMO_CREDENTIALS } from "../core/config.ts";
 
 type ClientId =
   | "claude-code" | "cursor" | "chatgpt" | "codex" | "claude-connectors"
@@ -61,9 +62,9 @@ function hbcliAbsolutePath(): string {
   }
 }
 
-const STdioEntry = (command = "hbcli"): Record<string, unknown> => ({
+const STdioEntry = (command = "hbcli", demo = false): Record<string, unknown> => ({
   command,
-  args: ["mcp", "serve"],
+  args: demo ? ["mcp", "serve", "--demo"] : ["mcp", "serve"],
 });
 
 function clineSettingsPath(): string {
@@ -88,22 +89,23 @@ function configFileFor(id: ClientId): { path: string; key: "mcpServers" | "serve
 
 /** Merge the hotelbyte stdio entry into an mcp.json-style file without
  * touching other servers. Returns a human summary for the report. */
-export function mergeMcpJson(existingRaw: string | null, key: "mcpServers" | "servers", command = "hbcli"): string {
+export function mergeMcpJson(existingRaw: string | null, key: "mcpServers" | "servers", command = "hbcli", demo = false): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw && existingRaw.trim()) {
     doc = JSON.parse(existingRaw) as Record<string, unknown>;
   }
   const servers = (doc[key] as Record<string, unknown> | undefined) ?? {};
-  servers.hotelbyte = STdioEntry(command);
+  servers.hotelbyte = STdioEntry(command, demo);
   doc[key] = servers;
   return JSON.stringify(doc, null, 2) + "\n";
 }
 
 /** Append a [mcp_servers.hotelbyte] section to Codex config.toml, or return
  * null when the section already exists (never rewrite TOML we don't own). */
-export function appendCodexToml(existingRaw: string | null, command = "hbcli"): string | null {
+export function appendCodexToml(existingRaw: string | null, command = "hbcli", demo = false): string | null {
   if (existingRaw && existingRaw.includes("[mcp_servers.hotelbyte]")) return null;
-  const section = `\n[mcp_servers.hotelbyte]\ncommand = "${command}"\nargs = ["mcp", "serve"]\n`;
+  const args = demo ? '"mcp", "serve", "--demo"' : '"mcp", "serve"';
+  const section = `\n[mcp_servers.hotelbyte]\ncommand = "${command}"\nargs = [${args}]\n`;
   return (existingRaw ?? "") + section;
 }
 
@@ -184,31 +186,17 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
     .description("One-command agent wiring: writes the client config (or prints the exact fields to paste) and verifies the connection")
     .argument("[client]", `agent to wire: ${Object.keys(CLIENTS).join(", ")}`)
     .option("--idle-seconds <s>", "Idle window for issued static tokens (default 30d)", parseInt)
-    .option("--demo", "Zero-signup shared sandbox identity (issue hotel-be#32386): reads HOTELBYTE_DEMO_APP_KEY/SECRET")
+    .option("--demo", "Zero-signup shared sandbox identity (hotel-be#32386) — baked-in, no credentials needed")
     .action(async (clientId: string | undefined, opts: { idleSeconds?: number; demo?: boolean }) => {
       const env = ctx.env();
 
-      // Zero-threshold demo identity: public sandbox credentials, no signup.
-      // Until ops ships them (hotel-be#32386), env vars carry the pair.
-      if (opts.demo) {
-        const demoKey = process.env.HOTELBYTE_DEMO_APP_KEY;
-        const demoSecret = process.env.HOTELBYTE_DEMO_APP_SECRET;
-        if (!demoKey || !demoSecret) {
-          console.log("");
-          console.log("hbcli mcp setup --demo (zero-signup sandbox identity)");
-          console.log("");
-          console.log("  The shared demo credentials are not shipped yet — track hotel-be#32386.");
-          console.log("  Meanwhile, wire your own tenant in two commands:");
-          console.log("    hbcli auth set-credentials --app-key YOUR_KEY --app-secret YOUR_SECRET");
-          console.log("    hbcli mcp setup " + (clientId ?? "<client>"));
-          console.log("");
-          return;
-        }
-        // Note: stored credentials take precedence over these env vars in
-        // loadProfile — until the demo identity ships as its own profile
-        // (hotel-be#32386), users with saved credentials keep using them.
-        process.env.HOTELBYTE_APP_KEY = demoKey;
-        process.env.HOTELBYTE_APP_SECRET = demoSecret;
+      // Zero-threshold demo identity (hotel-be#32386): baked-in sandbox
+      // credentials on their own profile name, so a user's stored openapi
+      // credentials are never touched. Demo wiring adds --demo to the
+      // stdio command so the gateway rides the same identity.
+      const demoMode = !!opts.demo;
+      if (demoMode && !DEMO_CREDENTIALS[env]) {
+        throw new Error(`No demo credentials baked in for env=${env} — the shared identity ships for the sandbox only.`);
       }
 
       // Resolve the client (interactive when omitted).
@@ -231,13 +219,13 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
 
       // Credentials first — token clients need static issuance, stdio rides the store.
       const report: Record<string, unknown> = { client: spec.label, env };
-      const { token: sessionToken, profile } = await getBearerTicket(env);
+      const { token: sessionToken, profile } = await getBearerTicket(env, { demo: demoMode });
       const endpoint = resolveEndpoint(profile);
       report.endpoint = endpoint;
 
       let pastedToken = "";
       if (spec.kind === "token") {
-        const { token } = await issueAgentToken(env, opts.idleSeconds);
+        const { token } = await issueAgentToken(env, opts.idleSeconds, { demo: demoMode });
         pastedToken = token;
         report.tokenIssued = true;
         report.idleSeconds = opts.idleSeconds ?? DEFAULT_AGENT_IDLE_SECONDS;
@@ -247,12 +235,12 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
       if (spec.kind === "claude-cli") {
         try {
           execSync("claude --version", { stdio: "ignore" });
-          execSync(`claude mcp add hotelbyte --scope user -- ${hbcliAbsolutePath()} mcp serve`, { stdio: "inherit" });
+          execSync(`claude mcp add hotelbyte --scope user -- ${hbcliAbsolutePath()} mcp serve${demoMode ? " --demo" : ""}`, { stdio: "inherit" });
           steps.push("✓ `claude mcp add hotelbyte --scope user -- hbcli mcp serve` executed (user scope)");
           report.configured = "claude-mcp-add";
         } catch {
           steps.push("Claude CLI not found on PATH or the add failed — paste this into ~/.claude.json → mcpServers:");
-          steps.push(`  ${JSON.stringify({ hotelbyte: STdioEntry(hbcliAbsolutePath()) })}`);
+          steps.push(`  ${JSON.stringify({ hotelbyte: STdioEntry(hbcliAbsolutePath(), demoMode) })}`);
           report.configured = "manual-json";
         }
       } else if (spec.kind === "file") {
@@ -264,7 +252,7 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
         const tomlPath = id ? tomlPaths[id] : undefined;
         if (tomlPath) {
           const existing = existsSync(tomlPath) ? readFileSync(tomlPath, "utf-8") : null;
-          const next = appendCodexToml(existing, hbcliAbsolutePath());
+          const next = appendCodexToml(existing, hbcliAbsolutePath(), demoMode);
           if (next === null) {
             steps.push(`✓ ${tomlPath} already has [mcp_servers.hotelbyte] — nothing to do`);
           } else {
@@ -277,7 +265,7 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
           const target = configFileFor(id);
           if (!target) throw new Error("No config path for this client.");
           const existing = existsSync(target.path) ? readFileSync(target.path, "utf-8") : null;
-          const merged = mergeMcpJson(existing, target.key, hbcliAbsolutePath());
+          const merged = mergeMcpJson(existing, target.key, hbcliAbsolutePath(), demoMode);
           mkdirSync(dirname(target.path), { recursive: true });
           writeFileSync(target.path, merged, "utf-8");
           steps.push(`✓ merged hotelbyte into ${target.path} (other servers preserved)`);

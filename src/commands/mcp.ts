@@ -33,10 +33,11 @@ export function createMcpCommand(ctx: Ctx): Command {
     .description("Run the local stdio MCP gateway for AI agents (Claude Code, Codex, Cursor, ...)")
     .option("--url <url>", "Remote /mcp endpoint override (default: <baseUrl>/mcp of --env)")
     .option("--token <token>", "Bearer token override (default: stored credentials)")
+    .option("--demo", "Use the shared sandbox demo identity (hotel-be#32386)")
     .option("--timeout-ms <ms>", "Upstream request timeout", parseInt)
-    .action(async (opts: { url?: string; token?: string; timeoutMs?: number }) => {
+    .action(async (opts: { url?: string; token?: string; timeoutMs?: number; demo?: boolean }) => {
       const env = ctx.env();
-      const { token: storedToken, profile } = await getBearerTicket(env);
+      const { token: storedToken, profile } = await getBearerTicket(env, { demo: opts.demo });
       const endpoint = resolveEndpoint(profile, opts.url);
       const token = opts.token ?? storedToken;
 

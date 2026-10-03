@@ -39,7 +39,15 @@ function credFile(): string {
 
 // "customer" = C 端邮箱验证码登录档（advisor 的客户；新邮箱即注册）。
 // 无密码/无 env 凭据回退——一次性验证码换取的 ticket 是唯一凭据。
-export type ProfileName = "openapi" | "portal" | "customer";
+export type ProfileName = "openapi" | "portal" | "customer" | "demo";
+
+// Zero-signup shared sandbox identity (hotel-be#32386): public demo
+// credentials on the pre-provisioned demo tenant chain. Deliberately
+// decoupled from any tenant brand name — the demo chain may be renamed
+// without touching this constant.
+export const DEMO_CREDENTIALS: Record<string, { appKey: string; appSecret: string }> = {
+  uat: { appKey: "hotelbyte_api_demo", appSecret: "hotelbyte_api_demo" },
+};
 
 export interface Profile {
   name: ProfileName;

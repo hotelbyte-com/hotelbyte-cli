@@ -17,7 +17,7 @@
  * `id`) yield exactly one response line; notifications yield none.
  */
 
-import { loadProfile, saveProfile, type Profile } from "./config.ts";
+import { DEMO_CREDENTIALS, loadProfile, saveProfile, type Profile } from "./config.ts";
 import { authenticateOpenapi, authenticatePortal, extractTicket } from "./auth.ts";
 import { HttpClient, HotelByteError } from "./http.ts";
 
@@ -38,7 +38,18 @@ export interface BridgeOptions {
 }
 
 /** Resolve the bearer ticket with the same profile preference as makeClient. */
-export async function getBearerTicket(env: string): Promise<{ token: string; profile: Profile }> {
+export async function getBearerTicket(env: string, opts?: { demo?: boolean }): Promise<{ token: string; profile: Profile }> {
+  if (opts?.demo) {
+    const demo = loadProfile("demo", env);
+    const creds = DEMO_CREDENTIALS[env];
+    if (!creds) {
+      throw new HotelByteError(401, `No demo credentials baked in for env=${env}. The shared identity ships for the sandbox only.`, "/api/auth/ticket");
+    }
+    demo.appKey = creds.appKey;
+    demo.appSecret = creds.appSecret;
+    await authenticateOpenapi(demo);
+    return { token: demo.ticket!, profile: demo };
+  }
   const portal = loadProfile("portal", env);
   if (portal.username || portal.ticket) {
     await authenticatePortal(portal);
@@ -75,8 +86,16 @@ export function resolveEndpoint(profile: Profile, override?: string): string {
  *     365 days for API users regardless of the requested TTL
  *   - revocation: freeze/delete the API user, or logout with the token
  */
-export async function issueAgentToken(env: string, idleSeconds?: number): Promise<{ token: string; endpoint: string }> {
-  const api = loadProfile("openapi", env);
+export async function issueAgentToken(env: string, idleSeconds?: number, opts?: { demo?: boolean }): Promise<{ token: string; endpoint: string }> {
+  const api = opts?.demo ? loadProfile("demo", env) : loadProfile("openapi", env);
+  if (opts?.demo) {
+    const creds = DEMO_CREDENTIALS[env];
+    if (!creds) {
+      throw new HotelByteError(401, `No demo credentials baked in for env=${env}.`, "/api/auth/ticket");
+    }
+    api.appKey = creds.appKey;
+    api.appSecret = creds.appSecret;
+  }
   if (!api.appKey || !api.appSecret) {
     throw new HotelByteError(
       401,
