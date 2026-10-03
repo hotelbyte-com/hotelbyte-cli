@@ -88,29 +88,30 @@ export async function makeClient(ctx: Ctx): Promise<HttpClient> {
 }
 
 /**
- * Run a POST request with auto-auth, emit the result.
- *
- * On 401 (HTTP status or biz code 100000401 — http.ts surfaces both as
- * HotelByteError.status), clear cached tickets and retry once: cached ST
- * tickets are short-lived, and a stale ticket used verbatim produced
+ * Run `attempt` with auto-auth, retrying once on stale-ticket 401 (HTTP status
+ * or biz code 100000401 — http.ts surfaces both as HotelByteError.status):
+ * cached ST tickets are short-lived, and a stale ticket used verbatim produced
  * hard-to-diagnose "authentication denied" failures (issue #142 follow-up).
+ * Shared by the JSON (`run`), raw-byte and multipart channels.
+ */
+export async function withAuthRetry<T>(ctx: Ctx, attempt: (client: HttpClient) => Promise<T>): Promise<T> {
+  try {
+    return await attempt(await makeClient(ctx));
+  } catch (e: any) {
+    const stale = e instanceof HotelByteError && (e.status === 401 || e.status === 1_00_00_0401);
+    if (!stale) throw e;
+    clearTicket("openapi", ctx.env());
+    clearTicket("portal", ctx.env());
+    return attempt(await makeClient(ctx));
+  }
+}
+
+/**
+ * Run a POST request with auto-auth, emit the result.
  */
 export async function run(ctx: Ctx, path: string, body: any): Promise<void> {
-  const attempt = async () => {
-    const client = await makeClient(ctx);
-    return client.post(path, body);
-  };
   try {
-    let resp: unknown;
-    try {
-      resp = await attempt();
-    } catch (e: any) {
-      const stale = e instanceof HotelByteError && (e.status === 401 || e.status === 1_00_00_0401);
-      if (!stale) throw e;
-      clearTicket("openapi", ctx.env());
-      clearTicket("portal", ctx.env());
-      resp = await attempt();
-    }
+    const resp = await withAuthRetry(ctx, (client) => client.post(path, body));
     emit(resp, ctx.jsonMode());
   } catch (e: any) {
     if (e instanceof HotelByteError) {

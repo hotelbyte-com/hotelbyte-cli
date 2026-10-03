@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { ENVIRONMENTS } from "../src/core/config.ts";
-import { HttpClient, HotelByteError } from "../src/core/http.ts";
+import { HttpClient, HotelByteError, parseEnvelopeBody } from "../src/core/http.ts";
 import {
   CATALOG_ENDPOINT,
   CATALOG_TTL_MS,
@@ -86,6 +86,31 @@ function captureStderr(): { notes: string[]; done: () => void } {
   console.error = (msg?: any, ...rest: any[]) => { notes.push([msg, ...rest].join(" ")); };
   return { notes, done: () => { console.error = original; } };
 }
+
+// ── parseEnvelopeBody (shared by the JSON and raw channels, issue #41) ──
+
+describe("parseEnvelopeBody", () => {
+  it("unwraps a code=0 envelope to data", () => {
+    expect(parseEnvelopeBody('{"code":0,"msg":"ok","data":{"a":1}}', "/api/x/y")).toEqual({ a: 1 });
+  });
+
+  it("raises HotelByteError on a code!=0 envelope (raw channel at HTTP 200)", () => {
+    try {
+      parseEnvelopeBody('{"code":100000403,"msg":"denied","data":null}', "/api/x/y");
+      throw new Error("should not reach");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(HotelByteError);
+      expect(e.status).toBe(100000403);
+      expect(e.message).toContain("denied");
+    }
+  });
+
+  it("passes through non-envelope JSON and unparseable bodies untouched", () => {
+    expect(parseEnvelopeBody('{"plain":"json"}', "/api/x/y")).toEqual({ plain: "json" });
+    expect(parseEnvelopeBody("not json", "/api/x/y")).toBe("not json");
+    expect(parseEnvelopeBody("", "/api/x/y")).toBeUndefined();
+  });
+});
 
 // ── normalizeApiPath ────────────────────────────────────────────────────
 
@@ -314,33 +339,72 @@ const CATALOG: MethodMeta[] = [
   // No operationType → heuristic applies.
   { serviceName: "tenant", methodName: "exportThings", path: "/api/trade/tenant/exportThings" },
   { serviceName: "tenant", methodName: "dashboardSummary", path: "/api/trade/tenant/dashboardSummary" },
+  // D6 channels (issue #41): exportCsv/getDocument mirror the server's
+  // streaming endpoints (raw bytes + Content-Disposition, no JSON envelope);
+  // uploadBrandAsset mirrors the multipart decoder contract.
+  { serviceName: "tenant", methodName: "exportCsv", path: "/api/trade/tenant/exportCsv" },
+  { serviceName: "tenant", methodName: "getDocument", path: "/api/trade/tenant/getDocument" },
+  { serviceName: "whitelabel", methodName: "uploadBrandAsset", path: "/api/whitelabel/uploadBrandAsset" },
 ];
 
 const serverCalls: { path: string; body: any }[] = [];
 
+/** Captured multipart entries of upload stub hits. */
+type MultipartEntry = { name: string; value: string } | { name: string; filename: string; bytes: Uint8Array };
+const uploadCaptures: MultipartEntry[][] = [];
+
+// Binary payloads prove byte-exact transit (0x00/0xFF would not survive any
+// accidental text round-trip).
+const CSV_BYTES = new Uint8Array([0x69, 0x64, 0x2c, 0x6e, 0x61, 0x6d, 0x65, 0x0a, 0x31, 0x2c, 0x00, 0xff]);
+const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x00, 0xff, 0x01]);
+const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
+
 const server = Bun.serve({
   port: 0,
-  fetch(req) {
+  async fetch(req) {
     const url = new URL(req.url);
-    return req.text().then((text) => {
-      let body: any = {};
-      try { body = text ? JSON.parse(text) : {}; } catch { /* keep {} */ }
-      serverCalls.push({ path: url.pathname, body });
-      switch (url.pathname) {
-        case CATALOG_ENDPOINT:
-          return Response.json({ code: 0, msg: "ok", data: CATALOG });
-        case "/api/trade/tenant/listOrder":
-          return Response.json({ code: 0, msg: "ok", data: { orders: [{ id: "o-1" }] } });
-        case "/api/trade/tenant/labelOrder":
-          return Response.json({ code: 0, msg: "ok", data: { labeled: true } });
-        case "/api/trade/tenant/exportThings":
-          return Response.json({ code: 0, msg: "ok", data: { exported: true } });
-        case "/api/trade/tenant/dashboardSummary":
-          return Response.json({ code: 0, msg: "ok", data: { today: 3 } });
-        default:
-          return Response.json({ code: 0, msg: "ok", data: { path: url.pathname } });
+    // Multipart upload stub: parse the real form so field names / filename /
+    // bytes can be asserted (tests/mcp.test.ts Bun.serve pattern).
+    if (url.pathname === "/api/whitelabel/uploadBrandAsset") {
+      const form = await req.formData();
+      const entries: MultipartEntry[] = [];
+      for (const [name, value] of (form as any).entries()) {
+        if (typeof value === "string") entries.push({ name, value });
+        else entries.push({ name, filename: value.name, bytes: new Uint8Array(await value.arrayBuffer()) });
       }
-    });
+      uploadCaptures.push(entries);
+      serverCalls.push({ path: url.pathname, body: { multipart: entries.map((e) => e.name) } });
+      return Response.json({ code: 0, msg: "ok", data: { url: "/uploads/brand-assets/1/logo.png" } });
+    }
+    const text = await req.text();
+    let body: any = {};
+    try { body = text ? JSON.parse(text) : {}; } catch { /* keep {} */ }
+    serverCalls.push({ path: url.pathname, body });
+    switch (url.pathname) {
+      case CATALOG_ENDPOINT:
+        return Response.json({ code: 0, msg: "ok", data: CATALOG });
+      case "/api/trade/tenant/listOrder":
+        return Response.json({ code: 0, msg: "ok", data: { orders: [{ id: "o-1" }] } });
+      case "/api/trade/tenant/labelOrder":
+        return Response.json({ code: 0, msg: "ok", data: { labeled: true } });
+      case "/api/trade/tenant/exportThings":
+        return Response.json({ code: 0, msg: "ok", data: { exported: true } });
+      case "/api/trade/tenant/dashboardSummary":
+        return Response.json({ code: 0, msg: "ok", data: { today: 3 } });
+      // Streaming-style responses: raw bytes, no {code,msg,data} envelope.
+      case "/api/trade/tenant/exportCsv":
+        return new Response(CSV_BYTES, {
+          headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="orders.csv"' },
+        });
+      case "/api/trade/tenant/getDocument":
+        return new Response(PDF_BYTES, {
+          headers: { "Content-Type": "application/pdf", "Content-Disposition": 'attachment; filename="doc.pdf"' },
+        });
+      case "/api/trade/tenant/getDeniedDocument":
+        return Response.json({ code: 100000403, msg: "forbidden by RBAC", data: null }, { status: 403 });
+      default:
+        return Response.json({ code: 0, msg: "ok", data: { path: url.pathname } });
+    }
   },
 });
 
@@ -514,12 +578,12 @@ describe("api catalog / describe (CLI end-to-end)", () => {
     try {
       const first = await runCli(["--json", "api", "catalog", "--service", "tenant"], home);
       expect(first.exitCode).toBe(0);
-      expect(JSON.parse(first.stdout.trim())).toHaveLength(4);
+      expect(JSON.parse(first.stdout.trim())).toHaveLength(6);
       expect(serverCalls).toHaveLength(1);
 
       const second = await runCli(["--json", "api", "catalog", "--service", "Tenant"], home);
       expect(second.exitCode).toBe(0);
-      expect(JSON.parse(second.stdout.trim())).toHaveLength(4);
+      expect(JSON.parse(second.stdout.trim())).toHaveLength(6);
       expect(serverCalls).toHaveLength(1); // fresh cache hit — no second getApiPaths
     } finally {
       cleanupHome(home);
@@ -567,7 +631,7 @@ describe("api command tree (--help)", () => {
     }
   });
 
-  it("api --help lists the three subcommands", async () => {
+  it("api --help lists the subcommands", async () => {
     const home = freshHome();
     try {
       const { stdout, exitCode } = await runCli(["api", "--help"], home);
@@ -575,6 +639,8 @@ describe("api command tree (--help)", () => {
       expect(stdout).toContain("catalog");
       expect(stdout).toContain("describe");
       expect(stdout).toContain("call");
+      expect(stdout).toContain("download");
+      expect(stdout).toContain("upload");
     } finally {
       cleanupHome(home);
     }
@@ -593,6 +659,211 @@ describe("api command tree (--help)", () => {
       expect(call.exitCode).toBe(0);
       expect(call.stdout).toContain("--data");
       expect(call.stdout).toContain("--confirm");
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("api download/upload --help list the D6 channel flags (issue #41)", async () => {
+    const home = freshHome();
+    try {
+      const download = await runCli(["api", "download", "--help"], home);
+      expect(download.exitCode).toBe(0);
+      expect(download.stdout).toContain("--data");
+      expect(download.stdout).toContain("--out");
+      expect(download.stdout).toContain("--confirm");
+
+      const upload = await runCli(["api", "upload", "--help"], home);
+      expect(upload.exitCode).toBe(0);
+      expect(upload.stdout).toContain("--file");
+      expect(upload.stdout).toContain("--field");
+      expect(upload.stdout).toContain("--data");
+      expect(upload.stdout).toContain("--confirm");
+    } finally {
+      cleanupHome(home);
+    }
+  });
+});
+
+// ── D6 non-JSON channels: api download (issue #41) ──────────────────────
+
+describe("api download (CLI end-to-end)", () => {
+  it("saves a non-JSON response verbatim to --out and reports the attachment filename", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    const out = join(home, "orders.csv");
+    try {
+      const r = await runCli(["--json", "api", "download", "trade/tenant/exportCsv", "--out", out, "--confirm"], home);
+      expect(r.exitCode).toBe(0);
+      // Byte-exact transit: 0x00/0xFF bytes survive only a true raw channel.
+      expect(new Uint8Array(await Bun.file(out).arrayBuffer())).toEqual(CSV_BYTES);
+      const summary = JSON.parse(r.stdout.trim());
+      expect(summary.savedTo).toBe(out);
+      expect(summary.bytes).toBe(CSV_BYTES.length);
+      expect(summary.contentType).toBe("text/csv; charset=utf-8");
+      expect(summary.fileName).toBe("orders.csv"); // from Content-Disposition
+      expect(serverCalls.map((c) => c.path)).toEqual(["/api/trade/tenant/exportCsv"]); // --confirm skips the catalog lookup
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("get*-prefixed paths count as reads — no --confirm needed", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    const out = join(home, "doc.pdf");
+    try {
+      const r = await runCli(["--json", "api", "download", "trade/tenant/getDocument", "--out", out], home);
+      expect(r.exitCode).toBe(0);
+      expect(new Uint8Array(await Bun.file(out).arrayBuffer())).toEqual(PDF_BYTES);
+      expect(serverCalls.map((c) => c.path)).toEqual([CATALOG_ENDPOINT, "/api/trade/tenant/getDocument"]);
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("write-classified paths demand --confirm and never reach the endpoint without it", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    try {
+      const r = await runCli(["--json", "api", "download", "trade/tenant/exportCsv", "--out", join(home, "x.csv")], home);
+      expect(r.exitCode).toBe(1);
+      expect(r.stderr).toContain("--confirm");
+      expect(r.stderr).toContain("WRITE");
+      expect(serverCalls.map((c) => c.path)).toEqual([CATALOG_ENDPOINT]);
+      expect(existsSync(join(home, "x.csv"))).toBe(false);
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("JSON-envelope responses are unpacked like api call — nothing is written to --out", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    const out = join(home, "unused.bin");
+    try {
+      // exportThings is heuristic-write and returns a JSON envelope.
+      const r = await runCli(["--json", "api", "download", "trade/tenant/exportThings", "--out", out, "--confirm"], home);
+      expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout.trim())).toEqual({ exported: true });
+      expect(existsSync(out)).toBe(false);
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("surfaces non-2xx envelopes as errors and writes no file", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    const out = join(home, "denied.bin");
+    try {
+      const r = await runCli(["--json", "api", "download", "trade/tenant/getDeniedDocument", "--out", out], home);
+      expect(r.exitCode).toBe(1);
+      expect(r.stderr).toContain("forbidden by RBAC");
+      expect(existsSync(out)).toBe(false);
+    } finally {
+      cleanupHome(home);
+    }
+  });
+});
+
+// ── D6 non-JSON channels: api upload (issue #41) ────────────────────────
+
+describe("api upload (CLI end-to-end)", () => {
+  it("rejects an upload without --confirm before any file leaves the machine", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    uploadCaptures.length = 0;
+    const file = join(home, "logo.png");
+    writeFileSync(file, PNG_BYTES);
+    try {
+      const r = await runCli(
+        ["--json", "api", "upload", "whitelabel/uploadBrandAsset", "--file", file, "--data", '{"assetType":"logo"}'],
+        home,
+      );
+      expect(r.exitCode).toBe(1);
+      expect(r.stderr).toContain("--confirm");
+      expect(serverCalls.map((c) => c.path)).toEqual([CATALOG_ENDPOINT]);
+      expect(uploadCaptures).toHaveLength(0);
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("uploads the file part (default field `file`) + scalar fields and emits the envelope", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    uploadCaptures.length = 0;
+    const file = join(home, "logo.png");
+    writeFileSync(file, PNG_BYTES);
+    try {
+      const r = await runCli(
+        [
+          "--json", "api", "upload", "whitelabel/uploadBrandAsset",
+          "--file", file, "--data", '{"assetType":"logo","entityId":"42"}', "--confirm",
+        ],
+        home,
+      );
+      expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout.trim()).url).toBe("/uploads/brand-assets/1/logo.png");
+
+      expect(uploadCaptures).toHaveLength(1);
+      const entries = uploadCaptures[0]!;
+      const scalar = Object.fromEntries(entries.filter((e) => "value" in e).map((e) => [e.name, e.value]));
+      expect(scalar).toEqual({ assetType: "logo", entityId: "42" });
+      const filePart = entries.find((e) => "filename" in e) as any;
+      expect(filePart).toBeDefined();
+      expect(filePart.name).toBe("file"); // server contract field name
+      expect(filePart.filename).toBe("logo.png");
+      expect(filePart.bytes).toEqual(PNG_BYTES);
+
+      expect(serverCalls.map((c) => c.path)).toEqual(["/api/whitelabel/uploadBrandAsset"]); // --confirm skips the catalog lookup
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("honors --field for endpoints that name the file part differently", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    uploadCaptures.length = 0;
+    const file = join(home, "pic.png");
+    writeFileSync(file, PNG_BYTES);
+    try {
+      const r = await runCli(
+        ["--json", "api", "upload", "whitelabel/uploadBrandAsset", "--file", file, "--field", "image", "--confirm"],
+        home,
+      );
+      expect(r.exitCode).toBe(0);
+      const filePart = uploadCaptures[0]?.find((e) => "filename" in e) as any;
+      expect(filePart?.name).toBe("image");
+      expect(filePart?.filename).toBe("pic.png");
+    } finally {
+      cleanupHome(home);
+    }
+  });
+
+  it("fails fast when --file does not exist (no network)", async () => {
+    const home = freshHome();
+    seedTicket(home);
+    serverCalls.length = 0;
+    uploadCaptures.length = 0;
+    try {
+      const r = await runCli(
+        ["--json", "api", "upload", "whitelabel/uploadBrandAsset", "--file", join(home, "nope.png"), "--confirm"],
+        home,
+      );
+      expect(r.exitCode).toBe(1);
+      expect(r.stderr).toContain("nope.png");
+      expect(serverCalls).toHaveLength(0);
+      expect(uploadCaptures).toHaveLength(0);
     } finally {
       cleanupHome(home);
     }
