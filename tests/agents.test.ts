@@ -43,7 +43,7 @@ class ExitSignal extends Error {
   }
 }
 let originalExit: typeof process.exit;
-async function captureExit(fn: () => Promise<void>): Promise<number | undefined> {
+async function captureExit(fn: () => Promise<unknown>): Promise<number | undefined> {
   try {
     await fn();
     return undefined;
