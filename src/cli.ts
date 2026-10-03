@@ -14,6 +14,7 @@
 
 import { Command, Option } from "commander";
 import { DEFAULT_ENV, ENVIRONMENTS, staicliHome } from "./core/config.ts";
+import { VERSION } from "./core/version.ts";
 import { getState } from "./core/state.ts";
 import { runRepl } from "./utils/repl.ts";
 import { createAuthCommand } from "./commands/auth.ts";
@@ -22,16 +23,19 @@ import { createTradeCommand } from "./commands/trade.ts";
 import { createOrdersCommand } from "./commands/orders.ts";
 import { createTeamCommand } from "./commands/team.ts";
 import { createAccountCommand } from "./commands/account.ts";
+import { createProductsCommand } from "./commands/products.ts";
+import { createCatalogsCommand } from "./commands/catalogs.ts";
+import { createConnectorsCommand } from "./commands/connectors.ts";
 import { createViewCommand } from "./commands/view.ts";
 import { createFxCommand } from "./commands/fx.ts";
+import { createApiCommand } from "./commands/api.ts";
 import { createMcpCommand } from "./commands/mcp.ts";
 import { createSkillCommand } from "./commands/skill.ts";
 import { createMcpSetupCommand } from "./commands/mcp_setup.ts";
 import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
-
-const VERSION = "0.0.4";
+// VERSION lives in core/version.ts (shared with the local MCP serverInfo).
 
 // ── self-update ────────────────────────────────────────────────────────
 
@@ -144,8 +148,12 @@ function main(): void {
   program.addCommand(createOrdersCommand(ctx));
   program.addCommand(createTeamCommand(ctx));
   program.addCommand(createAccountCommand(ctx));
+  program.addCommand(createProductsCommand(ctx));
+  program.addCommand(createCatalogsCommand(ctx));
+  program.addCommand(createConnectorsCommand(ctx));
   program.addCommand(createViewCommand(ctx));
   program.addCommand(createFxCommand(ctx));
+  program.addCommand(createApiCommand(ctx));
   program.addCommand(createMcpCommand(ctx));
   program.addCommand(createSkillCommand(ctx));
   // `mcp setup` rides the mcp command group

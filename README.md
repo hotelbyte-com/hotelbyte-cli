@@ -135,6 +135,10 @@ hbcli --json fx rates --base USD --currency CNY --currency EUR
 
 `hbcli mcp serve` runs a local stdio MCP gateway that forwards JSON-RPC
 verbatim to the hosted `/mcp` endpoint. One binary = CLI + local MCP gateway.
+`hbcli mcp serve --local` switches the same command to the local tool face —
+three generic tools (`portal.catalog` / `portal.describe` / `portal.call`) served
+in-process over the stored credentials (zero backend deploy, writes need
+`confirm: true`); wire it with `hbcli mcp setup <client> --local`.
 
 ```bash
 hbcli mcp serve                  # stored credentials, current --env
@@ -184,12 +188,18 @@ hbcli
 ├── orders            list, detail, dashboard, label, cancel, create-offline-booking, rebooking-pending
 ├── team              list, list-roles, invite, batch-invite, get, update
 ├── account           entity, subscriptions, suppliers, retail
+├── products          list, get (portal /products inventory reads)
+├── catalogs          list, get, create, hotels, add-hotels, remove-hotels (writes need --confirm)
+├── connectors        suppliers, accessible (alias of account suppliers accessible; connect stays in account)
 ├── view              homepage, retail-homepage
 ├── fx                rates (daily FX reference table, read-only)
+├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint)
 ├── mcp               serve (local stdio gateway), token (static agent token)
 ├── version           Show version and install path
 └── update            Self-update to latest release
 ```
+
+Any portal endpoint via the L0 passthrough: `hbcli api catalog --filter lookout` → `hbcli api describe <path|service/method>` → `hbcli api call a/b/c --data '{"k":1}'` (write operations require `--confirm`; catalog cached 24h).
 
 ## Environments
 

@@ -10,13 +10,17 @@ import { join } from "node:path";
 
 const CLI_PATH = join(import.meta.dir, "..", "src", "cli.ts");
 
+// process.execPath is the running Bun binary: the suite must not depend on
+// "bun" being on PATH (spawnSync would silently fail with empty output).
+const BUN_BIN = process.execPath;
+
 function runCliWithEnv(args: string[], env: Record<string, string>): { stdout: string; stderr: string; exitCode: number | null } {
-  const result = spawnSync("bun", ["run", CLI_PATH, ...args], { stdout: "pipe", stderr: "pipe", env });
+  const result = spawnSync(BUN_BIN, ["run", CLI_PATH, ...args], { stdout: "pipe", stderr: "pipe", env });
   return { stdout: result.stdout?.toString() ?? "", stderr: result.stderr?.toString() ?? "", exitCode: result.status };
 }
 
 function runCli(args: string[]): { stdout: string; stderr: string; exitCode: number | null } {
-  const result = spawnSync("bun", ["run", CLI_PATH, ...args], {
+  const result = spawnSync(BUN_BIN, ["run", CLI_PATH, ...args], {
     stdout: "pipe",
     stderr: "pipe",
   });

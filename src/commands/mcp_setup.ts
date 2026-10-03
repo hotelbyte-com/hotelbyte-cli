@@ -63,9 +63,10 @@ function hbcliAbsolutePath(): string {
   }
 }
 
-const STdioEntry = (command = "hbcli", demo = false): Record<string, unknown> => ({
+/** Stdio entry written into client configs: `mcp serve [--demo] [--local]`. */
+const STdioEntry = (command = "hbcli", mode: { demo?: boolean; local?: boolean } = {}): Record<string, unknown> => ({
   command,
-  args: demo ? ["mcp", "serve", "--demo"] : ["mcp", "serve"],
+  args: ["mcp", "serve", ...(mode.demo ? ["--demo"] : []), ...(mode.local ? ["--local"] : [])],
 });
 
 function clineSettingsPath(): string {
@@ -90,22 +91,22 @@ function configFileFor(id: ClientId): { path: string; key: "mcpServers" | "serve
 
 /** Merge the hotelbyte stdio entry into an mcp.json-style file without
  * touching other servers. Returns a human summary for the report. */
-export function mergeMcpJson(existingRaw: string | null, key: "mcpServers" | "servers", command = "hbcli", demo = false): string {
+export function mergeMcpJson(existingRaw: string | null, key: "mcpServers" | "servers", command = "hbcli", mode: { demo?: boolean; local?: boolean } = {}): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw && existingRaw.trim()) {
     doc = JSON.parse(existingRaw) as Record<string, unknown>;
   }
   const servers = (doc[key] as Record<string, unknown> | undefined) ?? {};
-  servers.hotelbyte = STdioEntry(command, demo);
+  servers.hotelbyte = STdioEntry(command, mode);
   doc[key] = servers;
   return JSON.stringify(doc, null, 2) + "\n";
 }
 
 /** Append a [mcp_servers.hotelbyte] section to Codex config.toml, or return
  * null when the section already exists (never rewrite TOML we don't own). */
-export function appendCodexToml(existingRaw: string | null, command = "hbcli", demo = false): string | null {
+export function appendCodexToml(existingRaw: string | null, command = "hbcli", mode: { demo?: boolean; local?: boolean } = {}): string | null {
   if (existingRaw && existingRaw.includes("[mcp_servers.hotelbyte]")) return null;
-  const args = demo ? '"mcp", "serve", "--demo"' : '"mcp", "serve"';
+  const args = ['"mcp"', '"serve"', ...(mode.demo ? ['"--demo"'] : []), ...(mode.local ? ['"--local"'] : [])].join(", ");
   const section = `\n[mcp_servers.hotelbyte]\ncommand = "${command}"\nargs = [${args}]\n`;
   return (existingRaw ?? "") + section;
 }
@@ -188,7 +189,8 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
     .argument("[client]", `agent to wire: ${Object.keys(CLIENTS).join(", ")}`)
     .option("--idle-seconds <s>", "Idle window for issued static tokens (default 30d)", parseInt)
     .option("--demo", "Zero-signup shared sandbox identity (hotel-be#32386) — baked-in, no credentials needed")
-    .action(async (clientId: string | undefined, opts: { idleSeconds?: number; demo?: boolean }) => {
+    .option("--local", "Wire `hbcli mcp serve --local` (in-process portal.catalog/describe/call tools) instead of the hosted bridge")
+    .action(async (clientId: string | undefined, opts: { idleSeconds?: number; demo?: boolean; local?: boolean }) => {
       const env = ctx.env();
 
       // Zero-threshold demo identity (hotel-be#32386): baked-in sandbox
@@ -196,6 +198,9 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
       // credentials are never touched. Demo wiring adds --demo to the
       // stdio command so the gateway rides the same identity.
       const demoMode = !!opts.demo;
+      // --local keeps the same shape: it only changes the stdio command line
+      // written into the client config (mcp serve --local).
+      const localMode = !!opts.local;
       if (demoMode && !DEMO_CREDENTIALS[env]) {
         throw new Error(`No demo credentials baked in for env=${env} — the shared identity ships for the sandbox only.`);
       }
@@ -236,12 +241,12 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
       if (spec.kind === "claude-cli") {
         try {
           execSync("claude --version", { stdio: "ignore" });
-          execSync(`claude mcp add hotelbyte --scope user -- ${hbcliAbsolutePath()} mcp serve${demoMode ? " --demo" : ""}`, { stdio: "inherit" });
-          steps.push("✓ `claude mcp add hotelbyte --scope user -- hbcli mcp serve` executed (user scope)");
+          execSync(`claude mcp add hotelbyte --scope user -- ${hbcliAbsolutePath()} mcp serve${demoMode ? " --demo" : ""}${localMode ? " --local" : ""}`, { stdio: "inherit" });
+          steps.push(`✓ \`claude mcp add hotelbyte --scope user -- hbcli mcp serve${demoMode ? " --demo" : ""}${localMode ? " --local" : ""}\` executed (user scope)`);
           report.configured = "claude-mcp-add";
         } catch {
           steps.push("Claude CLI not found on PATH or the add failed — paste this into ~/.claude.json → mcpServers:");
-          steps.push(`  ${JSON.stringify({ hotelbyte: STdioEntry(hbcliAbsolutePath(), demoMode) })}`);
+          steps.push(`  ${JSON.stringify({ hotelbyte: STdioEntry(hbcliAbsolutePath(), { demo: demoMode, local: localMode }) })}`);
           report.configured = "manual-json";
         }
       } else if (spec.kind === "file") {
@@ -253,7 +258,7 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
         const tomlPath = id ? tomlPaths[id] : undefined;
         if (tomlPath) {
           const existing = existsSync(tomlPath) ? readFileSync(tomlPath, "utf-8") : null;
-          const next = appendCodexToml(existing, hbcliAbsolutePath(), demoMode);
+          const next = appendCodexToml(existing, hbcliAbsolutePath(), { demo: demoMode, local: localMode });
           if (next === null) {
             steps.push(`✓ ${tomlPath} already has [mcp_servers.hotelbyte] — nothing to do`);
           } else {
@@ -266,7 +271,7 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
           const target = configFileFor(id);
           if (!target) throw new Error("No config path for this client.");
           const existing = existsSync(target.path) ? readFileSync(target.path, "utf-8") : null;
-          const merged = mergeMcpJson(existing, target.key, hbcliAbsolutePath(), demoMode);
+          const merged = mergeMcpJson(existing, target.key, hbcliAbsolutePath(), { demo: demoMode, local: localMode });
           mkdirSync(dirname(target.path), { recursive: true });
           writeFileSync(target.path, merged, "utf-8");
           steps.push(`✓ merged hotelbyte into ${target.path} (other servers preserved)`);

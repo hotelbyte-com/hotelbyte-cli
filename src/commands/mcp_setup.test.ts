@@ -7,6 +7,16 @@ describe("mergeMcpJson", () => {
     expect(out.mcpServers.hotelbyte).toEqual({ command: "hbcli", args: ["mcp", "serve"] });
   });
 
+  test("--local wires `mcp serve --local` into the client config", () => {
+    const out = JSON.parse(mergeMcpJson(null, "mcpServers", "hbcli", { local: true }));
+    expect(out.mcpServers.hotelbyte).toEqual({ command: "hbcli", args: ["mcp", "serve", "--local"] });
+  });
+
+  test("--demo and --local compose", () => {
+    const out = JSON.parse(mergeMcpJson(null, "mcpServers", "hbcli", { demo: true, local: true }));
+    expect(out.mcpServers.hotelbyte.args).toEqual(["mcp", "serve", "--demo", "--local"]);
+  });
+
   test("uses servers key for vscode", () => {
     const out = JSON.parse(mergeMcpJson(null, "servers"));
     expect(out.servers.hotelbyte.command).toBe("hbcli");
@@ -31,6 +41,11 @@ describe("appendCodexToml", () => {
     const out = appendCodexToml(null)!;
     expect(out).toContain('[mcp_servers.hotelbyte]');
     expect(out).toContain('args = ["mcp", "serve"]');
+  });
+
+  test("--local appends the local tool face to the TOML args", () => {
+    const out = appendCodexToml(null, "hbcli", { local: true })!;
+    expect(out).toContain('args = ["mcp", "serve", "--local"]');
   });
 
   test("keeps existing sections", () => {
