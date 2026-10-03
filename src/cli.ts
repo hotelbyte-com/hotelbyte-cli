@@ -24,6 +24,7 @@ import { createTeamCommand } from "./commands/team.ts";
 import { createAccountCommand } from "./commands/account.ts";
 import { createViewCommand } from "./commands/view.ts";
 import { createFxCommand } from "./commands/fx.ts";
+import { createApiCommand } from "./commands/api.ts";
 import { createMcpCommand } from "./commands/mcp.ts";
 import { createSkillCommand } from "./commands/skill.ts";
 import { createMcpSetupCommand } from "./commands/mcp_setup.ts";
@@ -146,6 +147,7 @@ function main(): void {
   program.addCommand(createAccountCommand(ctx));
   program.addCommand(createViewCommand(ctx));
   program.addCommand(createFxCommand(ctx));
+  program.addCommand(createApiCommand(ctx));
   program.addCommand(createMcpCommand(ctx));
   program.addCommand(createSkillCommand(ctx));
   // `mcp setup` rides the mcp command group
