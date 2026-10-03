@@ -13,7 +13,7 @@
 import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Ctx } from "./helpers.ts";
@@ -48,8 +48,18 @@ const CLIENTS: Record<ClientId, ClientSpec> = {
   generic: { label: "Any other MCP client", kind: "token" },
 };
 
-const STdioEntry = (): Record<string, unknown> => ({
-  command: "hbcli",
+/** Resolve the absolute hbcli path so GUI-launched clients (Cursor from the
+ * Dock, VS Code) can spawn it even when ~/.local/bin is not on their PATH. */
+function hbcliAbsolutePath(): string {
+  try {
+    return execSync("command -v hbcli", { encoding: "utf-8", shell: process.env.SHELL ?? "/bin/sh" }).trim();
+  } catch {
+    return process.argv[1] ? realpathSync(process.argv[1]) : "hbcli";
+  }
+}
+
+const STdioEntry = (command = "hbcli"): Record<string, unknown> => ({
+  command,
   args: ["mcp", "serve"],
 });
 
@@ -75,22 +85,22 @@ function configFileFor(id: ClientId): { path: string; key: "mcpServers" | "serve
 
 /** Merge the hotelbyte stdio entry into an mcp.json-style file without
  * touching other servers. Returns a human summary for the report. */
-export function mergeMcpJson(existingRaw: string | null, key: "mcpServers" | "servers"): string {
+export function mergeMcpJson(existingRaw: string | null, key: "mcpServers" | "servers", command = "hbcli"): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw && existingRaw.trim()) {
     doc = JSON.parse(existingRaw) as Record<string, unknown>;
   }
   const servers = (doc[key] as Record<string, unknown> | undefined) ?? {};
-  servers.hotelbyte = STdioEntry();
+  servers.hotelbyte = STdioEntry(command);
   doc[key] = servers;
   return JSON.stringify(doc, null, 2) + "\n";
 }
 
 /** Append a [mcp_servers.hotelbyte] section to Codex config.toml, or return
  * null when the section already exists (never rewrite TOML we don't own). */
-export function appendCodexToml(existingRaw: string | null): string | null {
+export function appendCodexToml(existingRaw: string | null, command = "hbcli"): string | null {
   if (existingRaw && existingRaw.includes("[mcp_servers.hotelbyte]")) return null;
-  const section = '\n[mcp_servers.hotelbyte]\ncommand = "hbcli"\nargs = ["mcp", "serve"]\n';
+  const section = `\n[mcp_servers.hotelbyte]\ncommand = "${command}"\nargs = ["mcp", "serve"]\n`;
   return (existingRaw ?? "") + section;
 }
 
@@ -208,14 +218,14 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
           report.configured = "claude-mcp-add";
         } catch {
           steps.push("Claude CLI not found on PATH or the add failed — paste this into ~/.claude.json → mcpServers:");
-          steps.push(`  ${JSON.stringify({ hotelbyte: STdioEntry() })}`);
+          steps.push(`  ${JSON.stringify({ hotelbyte: STdioEntry(hbcliAbsolutePath()) })}`);
           report.configured = "manual-json";
         }
       } else if (spec.kind === "file") {
         if (id === "codex") {
           const path = join(homedir(), ".codex", "config.toml");
           const existing = existsSync(path) ? readFileSync(path, "utf-8") : null;
-          const next = appendCodexToml(existing);
+          const next = appendCodexToml(existing, hbcliAbsolutePath());
           if (next === null) {
             steps.push(`✓ ${path} already has [mcp_servers.hotelbyte] — nothing to do`);
           } else {
@@ -228,7 +238,7 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
           const target = configFileFor(id);
           if (!target) throw new Error("No config path for this client.");
           const existing = existsSync(target.path) ? readFileSync(target.path, "utf-8") : null;
-          const merged = mergeMcpJson(existing, target.key);
+          const merged = mergeMcpJson(existing, target.key, hbcliAbsolutePath());
           mkdirSync(dirname(target.path), { recursive: true });
           writeFileSync(target.path, merged, "utf-8");
           steps.push(`✓ merged hotelbyte into ${target.path} (other servers preserved)`);
