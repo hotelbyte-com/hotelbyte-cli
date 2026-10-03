@@ -173,17 +173,18 @@ describe("non-JSON / garbage stdin tolerance", () => {
     await runLocalMcpServer(gen(), (l) => wrote.push(l), { ctx: unitCtx() });
     expect(wrote).toHaveLength(2);
     expect(JSON.parse(wrote[0]).result).toEqual({});
-    expect(JSON.parse(wrote[1]).result.tools).toHaveLength(3);
+    // 3 generic tools + the public presales.chat exception (issue #45).
+    expect(JSON.parse(wrote[1]).result.tools).toHaveLength(4);
   });
 });
 
 // ── tools/list ──────────────────────────────────────────────────────────
 
 describe("tools/list", () => {
-  it("serves exactly the three generic tools with the declared params", async () => {
+  it("serves the three generic tools plus the public presales.chat exception, with the declared params", async () => {
     const resp = await dispatchLocalMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, { ctx: unitCtx() });
     const tools = resp!.result.tools;
-    expect(tools.map((t: any) => t.name)).toEqual(["portal.catalog", "portal.describe", "portal.call"]);
+    expect(tools.map((t: any) => t.name)).toEqual(["portal.catalog", "portal.describe", "portal.call", "presales.chat"]);
 
     const byName = Object.fromEntries(tools.map((t: any) => [t.name, t]));
     expect(Object.keys(byName["portal.catalog"].inputSchema.properties)).toEqual(["filter", "service", "limit"]);
@@ -193,6 +194,11 @@ describe("tools/list", () => {
     expect(byName["portal.call"].inputSchema.properties.confirm.type).toBe("boolean");
     expect(byName["portal.call"].inputSchema.required).toEqual(["path"]);
     expect(byName["portal.call"].inputSchema.properties.data.type).toBe("object");
+
+    // D4 exception (issue #45): the one public domain tool, no credentials.
+    expect(byName["presales.chat"].inputSchema.required).toEqual(["message"]);
+    expect(Object.keys(byName["presales.chat"].inputSchema.properties).sort())
+      .toEqual(["locale", "message", "pageContext", "sessionId", "visitorId"]);
   });
 });
 
@@ -594,7 +600,7 @@ describe("mcp serve --local (subprocess stdio, demo identity)", () => {
       expect(init.result.protocolVersion).toBe("2025-06-18");
 
       const tools = JSON.parse(lines[1]).result.tools;
-      expect(tools.map((t: any) => t.name)).toEqual(["portal.catalog", "portal.describe", "portal.call"]);
+      expect(tools.map((t: any) => t.name)).toEqual(["portal.catalog", "portal.describe", "portal.call", "presales.chat"]);
 
       const catalog = JSON.parse(lines[2]).result;
       expect(catalog.isError).toBeUndefined();

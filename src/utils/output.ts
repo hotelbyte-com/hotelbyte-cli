@@ -28,6 +28,27 @@ export function error(msg: string, jsonMode = false): void {
 }
 
 /**
+ * Non-fatal stderr notice (diagnostics channel — stdout stays the data/protocol
+ * channel in both modes). Used where an action is about to overwrite state,
+ * e.g. `auth accounts use` restoring a snapshot over live slots.
+ */
+export function warn(msg: string): void {
+  console.error(`⚠ ${msg}`);
+}
+
+/**
+ * Secret display mask: reveal only the first 4 and last 2 characters
+ * ("abcd****wz"). Values of ≤ 6 chars would be fully revealed by a 4+2 window,
+ * so they are masked entirely. Tickets are never shown at all (only
+ * `has_ticket` booleans) — this helper is for key ids like appKey/appSecret.
+ */
+export function maskSecret(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (value.length <= 6) return "****";
+  return `${value.slice(0, 4)}****${value.slice(-2)}`;
+}
+
+/**
  * Parse a JSON string or @file.json path into a JS object.
  */
 export function parseJsonInput(value: string): unknown {
