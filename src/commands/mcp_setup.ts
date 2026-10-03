@@ -184,8 +184,32 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
     .description("One-command agent wiring: writes the client config (or prints the exact fields to paste) and verifies the connection")
     .argument("[client]", `agent to wire: ${Object.keys(CLIENTS).join(", ")}`)
     .option("--idle-seconds <s>", "Idle window for issued static tokens (default 30d)", parseInt)
-    .action(async (clientId: string | undefined, opts: { idleSeconds?: number }) => {
+    .option("--demo", "Zero-signup shared sandbox identity (issue hotel-be#32386): reads HOTELBYTE_DEMO_APP_KEY/SECRET")
+    .action(async (clientId: string | undefined, opts: { idleSeconds?: number; demo?: boolean }) => {
       const env = ctx.env();
+
+      // Zero-threshold demo identity: public sandbox credentials, no signup.
+      // Until ops ships them (hotel-be#32386), env vars carry the pair.
+      if (opts.demo) {
+        const demoKey = process.env.HOTELBYTE_DEMO_APP_KEY;
+        const demoSecret = process.env.HOTELBYTE_DEMO_APP_SECRET;
+        if (!demoKey || !demoSecret) {
+          console.log("");
+          console.log("hbcli mcp setup --demo (zero-signup sandbox identity)");
+          console.log("");
+          console.log("  The shared demo credentials are not shipped yet — track hotel-be#32386.");
+          console.log("  Meanwhile, wire your own tenant in two commands:");
+          console.log("    hbcli auth set-credentials --app-key YOUR_KEY --app-secret YOUR_SECRET");
+          console.log("    hbcli mcp setup " + (clientId ?? "<client>"));
+          console.log("");
+          return;
+        }
+        // Note: stored credentials take precedence over these env vars in
+        // loadProfile — until the demo identity ships as its own profile
+        // (hotel-be#32386), users with saved credentials keep using them.
+        process.env.HOTELBYTE_APP_KEY = demoKey;
+        process.env.HOTELBYTE_APP_SECRET = demoSecret;
+      }
 
       // Resolve the client (interactive when omitted).
       let id: ClientId | undefined = clientId as ClientId | undefined;
