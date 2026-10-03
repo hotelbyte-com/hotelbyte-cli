@@ -42,8 +42,10 @@ function credFile(): string {
 // ── profile ─────────────────────────────────────────────────────────────
 
 // "customer" = C 端邮箱验证码登录档（advisor 的客户；新邮箱即注册）。
+// "mock" = 服务端身份切换（view-as）会话档（issue #44）——仅存目标票据 +
+// 会话元数据，由 `auth impersonate` 写入、`auth mock-exit` 清除。
 // 无密码/无 env 凭据回退——一次性验证码换取的 ticket 是唯一凭据。
-export type ProfileName = "openapi" | "portal" | "customer" | "demo";
+export type ProfileName = "openapi" | "portal" | "customer" | "demo" | "mock";
 
 // Zero-signup shared sandbox identity (hotel-be#32386): public demo
 // credentials on the pre-provisioned demo tenant chain. Deliberately
@@ -77,6 +79,12 @@ export interface SlotCredentials {
   username?: string;
   password?: string;
   ticket?: string;
+  // View-as session metadata (issue #44) — only the "mock" slot ever carries
+  // these; the other slots and the accounts snapshots never set them.
+  sessionId?: string;
+  expiresTime?: string;
+  originalUser?: string;
+  targetUser?: string;
 }
 
 /**
@@ -278,4 +286,54 @@ export function applyAccountRestore(snapshot: AccountSnapshot, env: string): Res
   for (const id of plan.restored) putSlot(id, env, snapshot[id]!);
   for (const id of plan.cleared) clearTicket(id, env);
   return plan;
+}
+
+// ── mock (view-as) session slot (issue #44) ─────────────────────────────
+//
+// Server-side identity switching (backend /api/auth/mockStart family): the
+// impersonation JWT is stored as the "mock" slot together with a session
+// summary. Deliberately OUTSIDE the named-account snapshot machinery
+// (ACCOUNT_IDENTITIES) — an impersonation is transient session state, not a
+// login identity. Cleared as a whole (ticket + metadata) by `auth mock-exit`
+// and by the stale-401 retry path.
+
+/** Stored view-as session: the target's bearer ticket + summary metadata. */
+export interface MockSession {
+  ticket: string;
+  sessionId?: string;
+  expiresTime?: string;
+  /** Display summary of the real operator (key/username/id). */
+  originalUser?: string;
+  /** Display summary of the impersonated user (key/username/id). */
+  targetUser?: string;
+}
+
+export function saveMockSession(env: string, session: MockSession): void {
+  putSlot("mock", env, {
+    ticket: session.ticket,
+    sessionId: session.sessionId,
+    expiresTime: session.expiresTime,
+    originalUser: session.originalUser,
+    targetUser: session.targetUser,
+  });
+}
+
+/**
+ * Active mock session for `env`, or undefined. Reads the STORE only — the
+ * env-var fallbacks in loadProfile (HOTELBYTE_TOKEN) must never make an
+ * injected ticket look like an impersonation session.
+ */
+export function loadMockSession(env: string): MockSession | undefined {
+  const slot = slotFrom(loadStore(), `mock:${env}`);
+  return slot.ticket ? (slot as MockSession) : undefined;
+}
+
+/** Removes the whole mock slot — ticket and metadata together. */
+export function clearMockSession(env: string): void {
+  const store = loadStore();
+  const key = `mock:${env}`;
+  if (store[key] !== undefined) {
+    delete store[key];
+    saveStore(store);
+  }
 }

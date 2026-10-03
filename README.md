@@ -139,6 +139,28 @@ hbcli auth accounts remove work     # delete a snapshot
 snapshot, `anonymous` otherwise. Global flags (`--json`, `--env`) go before the
 subcommand: `hbcli --json auth accounts list`.
 
+### View as customer (server-side impersonation)
+
+Admins can run commands as another user via the backend mock session family
+(`/api/auth/mockStart`); the impersonation ticket is stored in the `mock` slot
+and **outranks your own logins** until `auth mock-exit` (or the TTL expires —
+default 7200s, a stale ticket falls back to your own identity on the next
+command):
+
+```bash
+hbcli auth mockable --customer-id 77                  # users you may impersonate
+hbcli auth impersonate --target-user-id 12345 \
+  --source customer_detail --reason "support call"    # start the session
+hbcli auth mock-status                                # session + banned actions
+hbcli auth mock-exit                                  # end it, clear the slot
+```
+
+Permission model (backend-authoritative, `api/service/auth_mock.go`): platform
+users may mock any customer's users; tenant admins need the MockUser +
+booking privileges within their tenant scope; customer users can never mock.
+`auth whoami` shows `impersonating: {target_user, original_user, expires_time}`
+while a session is active.
+
 ### Agent-friendly
 
 ```bash
@@ -200,6 +222,7 @@ hbcli mcp token --idle-seconds 3600   # custom idle window
 hbcli
 ├── auth              set-credentials, login, logout, whoami,
 │                     accounts save/list/use/remove (named multi-account snapshots),
+│                     mockable/impersonate/mock-status/mock-exit (view-as impersonation),
 │                     send-code, check-domain, register (B 端 tenant self-registration),
 │                     customer-send-code, customer-login (C 端 email-code login/register)
 ├── search            hotel-list, hotel-rates, destinations, check-avail, hotel-detail, hotels-metadata
