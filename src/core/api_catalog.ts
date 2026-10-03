@@ -158,6 +158,13 @@ export function isWriteOperation(meta: Pick<MethodMeta, "operationType" | "metho
   return !READ_METHOD_PREFIXES.some((p) => name.startsWith(p));
 }
 
+/** operationType as shown to callers: server value, or the heuristic verdict.
+ *  Shared by `api catalog/describe` output and the local MCP tools. */
+export function effectiveOperationType(meta: Pick<MethodMeta, "operationType" | "methodName">): string {
+  if (meta.operationType === "write" || meta.operationType === "read") return meta.operationType;
+  return isWriteOperation(meta) ? "write (heuristic)" : "read (heuristic)";
+}
+
 // ── path handling ───────────────────────────────────────────────────────
 
 // Out of scope for the JSON passthrough (architecture D6): internal routes,

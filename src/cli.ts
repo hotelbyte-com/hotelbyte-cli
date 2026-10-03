@@ -14,6 +14,7 @@
 
 import { Command, Option } from "commander";
 import { DEFAULT_ENV, ENVIRONMENTS, staicliHome } from "./core/config.ts";
+import { VERSION } from "./core/version.ts";
 import { getState } from "./core/state.ts";
 import { runRepl } from "./utils/repl.ts";
 import { createAuthCommand } from "./commands/auth.ts";
@@ -31,8 +32,7 @@ import { createMcpSetupCommand } from "./commands/mcp_setup.ts";
 import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
-
-const VERSION = "0.0.4";
+// VERSION lives in core/version.ts (shared with the local MCP serverInfo).
 
 // ── self-update ────────────────────────────────────────────────────────
 

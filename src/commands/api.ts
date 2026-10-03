@@ -15,6 +15,7 @@ import { Command } from "commander";
 import { run, parseJsonInput, makeClient, type Ctx } from "./helpers.ts";
 import { emit, error } from "../utils/output.ts";
 import {
+  effectiveOperationType,
   findMethodMeta,
   isWriteOperation,
   loadCatalog,
@@ -26,12 +27,6 @@ import {
 
 function catalogCtx(ctx: Ctx): ApiCatalogCtx {
   return { env: ctx.env, client: () => makeClient(ctx) };
-}
-
-/** operationType as shown to humans: server value, or the heuristic verdict. */
-function effectiveOperationType(meta: Pick<MethodMeta, "operationType" | "methodName">): string {
-  if (meta.operationType === "write" || meta.operationType === "read") return meta.operationType;
-  return isWriteOperation(meta) ? "write (heuristic)" : "read (heuristic)";
 }
 
 function printCatalogTable(methods: MethodMeta[]): void {

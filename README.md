@@ -135,6 +135,10 @@ hbcli --json fx rates --base USD --currency CNY --currency EUR
 
 `hbcli mcp serve` runs a local stdio MCP gateway that forwards JSON-RPC
 verbatim to the hosted `/mcp` endpoint. One binary = CLI + local MCP gateway.
+`hbcli mcp serve --local` switches the same command to the local tool face —
+three generic tools (`portal.catalog` / `portal.describe` / `portal.call`) served
+in-process over the stored credentials (zero backend deploy, writes need
+`confirm: true`); wire it with `hbcli mcp setup <client> --local`.
 
 ```bash
 hbcli mcp serve                  # stored credentials, current --env
