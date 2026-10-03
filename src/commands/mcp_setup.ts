@@ -27,7 +27,7 @@ import {
 
 type ClientId =
   | "claude-code" | "cursor" | "chatgpt" | "codex" | "claude-connectors"
-  | "vscode" | "cline" | "workbuddy" | "coze" | "cherry" | "generic";
+  | "grok" | "vscode" | "cline" | "workbuddy" | "coze" | "cherry" | "generic";
 
 interface ClientSpec {
   label: string;
@@ -40,6 +40,7 @@ const CLIENTS: Record<ClientId, ClientSpec> = {
   chatgpt: { label: "ChatGPT (custom plugin)", kind: "token" },
   codex: { label: "Codex", kind: "file" },
   "claude-connectors": { label: "Claude Desktop / Web connectors", kind: "token" },
+  grok: { label: "Grok (xAI connectors)", kind: "token" },
   vscode: { label: "VS Code · Copilot", kind: "file" },
   cline: { label: "Cline", kind: "file" },
   workbuddy: { label: "WorkBuddy (Tencent)", kind: "token" },
@@ -134,6 +135,13 @@ function tokenGuide(id: ClientId, token: string, endpoint: string): string[] {
         `  Server URL:      ${endpoint}`,
         "  Authentication:  API key   ← NOT OAuth (creation fails on the OAuth probe)",
         auth,
+      ];
+    case "grok":
+      return [
+        "grok.com/connectors → New Connector → Custom:",
+        `  Server URL:      ${endpoint}`,
+        auth,
+        "Then in any chat: + button → Select Connectors → hotelbyte",
       ];
     case "claude-connectors":
       return [
