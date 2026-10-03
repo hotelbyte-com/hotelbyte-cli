@@ -14,7 +14,12 @@ import { join } from "node:path";
 import type { Ctx } from "./helpers.ts";
 import { emit } from "../utils/output.ts";
 
-export const SKILL_SOURCE = "https://hotelbyte.com/skills/hotelbyte/SKILL.md";
+// Primary source is the OPEN skill repo (users can read/fork/audit it);
+// the site mirror is the fallback.
+export const SKILL_SOURCES = [
+  "https://raw.githubusercontent.com/hotelbyte-com/hotelbyte-skills/main/SKILL.md",
+  "https://hotelbyte.com/skills/hotelbyte/SKILL.md",
+] as const;
 
 type ClientId = "claude-code";
 
@@ -39,9 +44,17 @@ export function createSkillCommand(ctx: Ctx): Command {
       if (opts.file) {
         body = (await import("node:fs")).readFileSync(opts.file, "utf-8");
       } else {
-        const resp = await fetch(SKILL_SOURCE);
-        if (!resp.ok) throw new Error(`Failed to download skill (${resp.status}) from ${SKILL_SOURCE} — use --file for offline install.`);
-        body = await resp.text();
+        const errors: string[] = [];
+        for (const src of SKILL_SOURCES) {
+          try {
+            const resp = await fetch(src, { redirect: "follow" });
+            if (resp.ok) { body = await resp.text(); break; }
+            errors.push(`${src} → HTTP ${resp.status}`);
+          } catch (e) {
+            errors.push(`${src} → ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        if (body === undefined) throw new Error(`Failed to download the skill: ${errors.join("; ")} — use --file for offline install.`);
       }
 
       mkdirSync(dir, { recursive: true });
@@ -50,11 +63,11 @@ export function createSkillCommand(ctx: Ctx): Command {
 
       const version = /version:\s*([\d.]+)/.exec(body)?.[1] ?? "unknown";
       if (ctx.jsonMode()) {
-        emit({ installed: true, target, source: opts.file ?? SKILL_SOURCE, version }, true);
+        emit({ installed: true, target, source: opts.file ?? SKILL_SOURCES[0], version }, true);
         return;
       }
       console.log(`\n✓ HotelByte skill installed → ${target} (v${version})`);
-      console.log(`  source: ${opts.file ?? SKILL_SOURCE}`);
+      console.log(`  source: ${opts.file ?? SKILL_SOURCES[0]}`);
       console.log("  restart the agent (Claude Code: new session) and it will load automatically.\n");
     });
 
