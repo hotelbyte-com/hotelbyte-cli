@@ -25,6 +25,7 @@ import {
   resolveEndpoint,
 } from "../core/mcp_bridge.ts";
 import { DEMO_CREDENTIALS } from "../core/config.ts";
+import { installSkillForClient, SKILL_CAPABLE_CLIENTS, type ClientId as SkillClientId } from "./skill.ts";
 
 type ClientId =
   | "claude-code" | "cursor" | "chatgpt" | "codex" | "claude-connectors"
@@ -282,6 +283,21 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
       const verify = await verifyEndpoint(endpoint, verifyToken);
       report.verified = verify.ok;
       report.verifyDetail = verify.detail;
+
+      // Skill rides the setup: every skill-capable client gets the skill
+      // directory installed alongside its MCP wiring.
+      const skillCapable = SKILL_CAPABLE_CLIENTS.includes(id as SkillClientId);
+      if (skillCapable) {
+        try {
+          const files = await installSkillForClient(ctx, id as SkillClientId);
+          steps.push(`✓ skill installed → ${files.length} files (${id} skills directory)`);
+          report.skillInstalled = true;
+        } catch (e) {
+          steps.push(`⚠ skill install failed: ${e instanceof Error ? e.message : String(e)} — retry with: hbcli skill install --client ${id}`);
+        }
+      } else {
+        steps.push(`· ${spec.label} has no native skills directory — the skill knowledge rides the MCP tool descriptions`);
+      }
 
       if (ctx.jsonMode()) {
         emit({ ...report, steps }, true);
