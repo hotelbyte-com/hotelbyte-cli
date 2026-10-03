@@ -198,13 +198,15 @@ hbcli
 │                     promo list/get (writes need --confirm)
 ├── view              homepage, retail-homepage
 ├── fx                rates (daily FX reference table, read-only)
-├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint)
+├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint),
+│                     download (streaming file responses → --out), upload (multipart)
 ├── mcp               serve (local stdio gateway), token (static agent token)
 ├── version           Show version and install path
 └── update            Self-update to latest release
 ```
 
 Any portal endpoint via the L0 passthrough: `hbcli api catalog --filter lookout` → `hbcli api describe <path|service/method>` → `hbcli api call a/b/c --data '{"k":1}'` (write operations require `--confirm`; catalog cached 24h).
+Non-JSON channels: `hbcli api download trade/customer/exportOrders --out orders.csv --data '{"pageNum":1,"pageSize":100}' --confirm` saves raw file responses verbatim (JSON envelopes are unpacked like `api call`); `hbcli api upload whitelabel/uploadBrandAsset --file logo.png --data '{"assetType":"logo"}' --confirm` posts multipart form data (uploads are write-classified — `--confirm` required).
 
 ## Environments
 
