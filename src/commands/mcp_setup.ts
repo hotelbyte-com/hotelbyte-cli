@@ -27,7 +27,7 @@ import {
 
 type ClientId =
   | "claude-code" | "cursor" | "chatgpt" | "codex" | "claude-connectors"
-  | "grok" | "vscode" | "cline" | "workbuddy" | "coze" | "cherry" | "generic";
+  | "grok" | "trae" | "vscode" | "cline" | "workbuddy" | "coze" | "cherry" | "generic";
 
 interface ClientSpec {
   label: string;
@@ -40,7 +40,8 @@ const CLIENTS: Record<ClientId, ClientSpec> = {
   chatgpt: { label: "ChatGPT (custom plugin)", kind: "token" },
   codex: { label: "Codex", kind: "file" },
   "claude-connectors": { label: "Claude Desktop / Web connectors", kind: "token" },
-  grok: { label: "Grok (xAI connectors)", kind: "token" },
+  grok: { label: "Grok Bot (local config.toml)", kind: "file" },
+  trae: { label: "Trae / Traex", kind: "file" },
   vscode: { label: "VS Code · Copilot", kind: "file" },
   cline: { label: "Cline", kind: "file" },
   workbuddy: { label: "WorkBuddy (Tencent)", kind: "token" },
@@ -136,13 +137,6 @@ function tokenGuide(id: ClientId, token: string, endpoint: string): string[] {
         "  Authentication:  API key   ← NOT OAuth (creation fails on the OAuth probe)",
         auth,
       ];
-    case "grok":
-      return [
-        "grok.com/connectors → New Connector → Custom:",
-        `  Server URL:      ${endpoint}`,
-        auth,
-        "Then in any chat: + button → Select Connectors → hotelbyte",
-      ];
     case "claude-connectors":
       return [
         "Claude → Settings → Extensions/Connectors → Add custom connector:",
@@ -230,18 +224,23 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
           report.configured = "manual-json";
         }
       } else if (spec.kind === "file") {
-        if (id === "codex") {
-          const path = join(homedir(), ".codex", "config.toml");
-          const existing = existsSync(path) ? readFileSync(path, "utf-8") : null;
+        const tomlPaths: Partial<Record<ClientId, string>> = {
+          codex: join(homedir(), ".codex", "config.toml"),
+          grok: join(homedir(), ".grok", "config.toml"),
+          trae: join(homedir(), ".trae", "traecli.toml"),
+        };
+        const tomlPath = id ? tomlPaths[id] : undefined;
+        if (tomlPath) {
+          const existing = existsSync(tomlPath) ? readFileSync(tomlPath, "utf-8") : null;
           const next = appendCodexToml(existing, hbcliAbsolutePath());
           if (next === null) {
-            steps.push(`✓ ${path} already has [mcp_servers.hotelbyte] — nothing to do`);
+            steps.push(`✓ ${tomlPath} already has [mcp_servers.hotelbyte] — nothing to do`);
           } else {
-            mkdirSync(join(homedir(), ".codex"), { recursive: true });
-            writeFileSync(path, next, "utf-8");
-            steps.push(`✓ wrote [mcp_servers.hotelbyte] into ${path}`);
+            mkdirSync(dirname(tomlPath), { recursive: true });
+            writeFileSync(tomlPath, next, "utf-8");
+            steps.push(`✓ wrote [mcp_servers.hotelbyte] into ${tomlPath}`);
           }
-          report.configFile = path;
+          report.configFile = tomlPath;
         } else {
           const target = configFileFor(id);
           if (!target) throw new Error("No config path for this client.");
