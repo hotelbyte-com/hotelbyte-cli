@@ -191,6 +191,8 @@ hbcli
 ├── products          list, get (portal /products inventory reads)
 ├── catalogs          list, get, create, hotels, add-hotels, remove-hotels (writes need --confirm)
 ├── connectors        suppliers, accessible (alias of account suppliers accessible; connect stays in account)
+├── lookout           jobs list/get/pause/resume, runs list/get/rows/trigger/cancel,
+│                     reports list/get, insights price-trends/coverage-trends (writes need --confirm)
 ├── view              homepage, retail-homepage
 ├── fx                rates (daily FX reference table, read-only)
 ├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint)
