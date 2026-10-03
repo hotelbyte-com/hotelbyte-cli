@@ -8,17 +8,24 @@
  */
 
 import { Command } from "commander";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Ctx } from "./helpers.ts";
 import { emit } from "../utils/output.ts";
 
 // Primary source is the OPEN skill repo (users can read/fork/audit it);
-// the site mirror is the fallback.
-export const SKILL_SOURCES = [
-  "https://raw.githubusercontent.com/hotelbyte-com/hotelbyte-skills/main/SKILL.md",
-  "https://hotelbyte.com/skills/hotelbyte/SKILL.md",
+// the site mirror is the fallback. A skill is a directory: SKILL.md plus
+// scripts/ and references/ — every file on this manifest is installed.
+export const SKILL_FILE_MANIFEST = [
+  "SKILL.md",
+  "scripts/doctor.sh",
+  "references/tools.md",
+] as const;
+
+const SKILL_SOURCE_ROOTS = [
+  "https://raw.githubusercontent.com/hotelbyte-com/hotelbyte-skills/main",
+  "https://hotelbyte.com/skills/hotelbyte",
 ] as const;
 
 type ClientId = "claude-code";
@@ -40,34 +47,52 @@ export function createSkillCommand(ctx: Ctx): Command {
       const dir = CLIENT_DIRS[client];
       if (!dir) throw new Error(`Unknown client "${opts.client}". Supported: ${Object.keys(CLIENT_DIRS).join(", ")}`);
 
-      let body: string;
+      const written: string[] = [];
       if (opts.file) {
-        body = (await import("node:fs")).readFileSync(opts.file, "utf-8");
+        // Offline single-file install: SKILL.md only (scripts/references absent).
+        const body = (await import("node:fs")).readFileSync(opts.file, "utf-8");
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "SKILL.md"), body, "utf-8");
+        written.push("SKILL.md");
       } else {
+        // Directory install: pick the first source root that serves SKILL.md,
+        // then fetch the whole manifest from it.
         const errors: string[] = [];
-        for (const src of SKILL_SOURCES) {
+        let root: string | undefined;
+        for (const r of SKILL_SOURCE_ROOTS) {
           try {
-            const resp = await fetch(src, { redirect: "follow" });
-            if (resp.ok) { body = await resp.text(); break; }
-            errors.push(`${src} → HTTP ${resp.status}`);
+            const resp = await fetch(`${r}/SKILL.md`, { redirect: "follow" });
+            if (resp.ok) { root = r; break; }
+            errors.push(`${r} → HTTP ${resp.status}`);
           } catch (e) {
-            errors.push(`${src} → ${e instanceof Error ? e.message : String(e)}`);
+            errors.push(`${r} → ${e instanceof Error ? e.message : String(e)}`);
           }
         }
-        if (body === undefined) throw new Error(`Failed to download the skill: ${errors.join("; ")} — use --file for offline install.`);
+        if (!root) throw new Error(`Failed to download the skill: ${errors.join("; ")} — use --file for offline install.`);
+        for (const rel of SKILL_FILE_MANIFEST) {
+          const resp = await fetch(`${root}/${rel}`, { redirect: "follow" });
+          if (!resp.ok) {
+            if (rel === "SKILL.md") throw new Error(`Failed to download ${rel} (${resp.status})`);
+            continue; // optional companion files
+          }
+          const body = await resp.text();
+          const target = join(dir, rel);
+          mkdirSync(dirname(target), { recursive: true });
+          writeFileSync(target, body, "utf-8");
+          if (rel.endsWith(".sh")) chmodSync(target, 0o755);
+          written.push(rel);
+        }
       }
 
-      mkdirSync(dir, { recursive: true });
-      const target = join(dir, "SKILL.md");
-      writeFileSync(target, body, "utf-8");
-
-      const version = /version:\s*([\d.]+)/.exec(body)?.[1] ?? "unknown";
+      const mainDoc = (await import("node:fs")).readFileSync(join(dir, "SKILL.md"), "utf-8");
+      const version = /version:\s*([\d.]+)/.exec(mainDoc)?.[1] ?? "unknown";
       if (ctx.jsonMode()) {
-        emit({ installed: true, target, source: opts.file ?? SKILL_SOURCES[0], version }, true);
+        emit({ installed: true, dir, files: written, version }, true);
         return;
       }
-      console.log(`\n✓ HotelByte skill installed → ${target} (v${version})`);
-      console.log(`  source: ${opts.file ?? SKILL_SOURCES[0]}`);
+      console.log(`\n✓ HotelByte skill installed → ${dir} (v${version})`);
+      written.forEach((f) => console.log(`  · ${f}`));
+      console.log("  self-check: bash ~/.claude/skills/hotelbyte/scripts/doctor.sh");
       console.log("  restart the agent (Claude Code: new session) and it will load automatically.\n");
     });
 
