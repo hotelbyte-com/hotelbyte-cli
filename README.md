@@ -161,6 +161,21 @@ booking privileges within their tenant scope; customer users can never mock.
 `auth whoami` shows `impersonating: {target_user, original_user, expires_time}`
 while a session is active.
 
+### Pre-sales AI advisor (public)
+
+No login required — this is the landing-page agent surface:
+
+```bash
+hbcli presales chat "Do you support pets?" --locale zh --page-context /pricing
+hbcli --json presales chat "hi"     # raw A2UI SSE data lines (JSONL) for agents
+hbcli presales feedback --email you@corp.com --message-type demo_request \
+  --company "Acme" --message "want a demo" --locale en
+```
+
+`chat` prints each A2UI v0.9 event as it arrives; `feedback` answers with
+`{success, message}`. The server rate-limits per IP and per visitor — a 429 is
+surfaced verbatim, never retried.
+
 ### Agent-friendly
 
 ```bash
@@ -178,7 +193,8 @@ verbatim to the hosted `/mcp` endpoint. One binary = CLI + local MCP gateway.
 `hbcli mcp serve --local` switches the same command to the local tool face —
 three generic tools (`portal.catalog` / `portal.describe` / `portal.call`) served
 in-process over the stored credentials (zero backend deploy, writes need
-`confirm: true`); wire it with `hbcli mcp setup <client> --local`.
+`confirm: true`), plus the public `presales.chat` advisor (no credentials
+needed); wire it with `hbcli mcp setup <client> --local`.
 
 ```bash
 hbcli mcp serve                  # stored credentials, current --env
@@ -239,6 +255,7 @@ hbcli
 │                     settlement overview/entries/payables/payouts, payouts create/cancel,
 │                     promo list/get (writes need --confirm)
 ├── view              homepage, retail-homepage
+├── presales          chat (SSE A2UI advisor), feedback (lead/demo_request/human_handoff) — public, no login
 ├── fx                rates (daily FX reference table, read-only)
 ├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint),
 │                     download (streaming file responses → --out), upload (multipart)

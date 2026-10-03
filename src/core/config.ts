@@ -44,8 +44,10 @@ function credFile(): string {
 // "customer" = C 端邮箱验证码登录档（advisor 的客户；新邮箱即注册）。
 // "mock" = 服务端身份切换（view-as）会话档（issue #44）——仅存目标票据 +
 // 会话元数据，由 `auth impersonate` 写入、`auth mock-exit` 清除。
+// "public" = 无认证公共面（presales 落页顾问，issue #45）——仅作 baseUrl
+// 载体，永不写库。
 // 无密码/无 env 凭据回退——一次性验证码换取的 ticket 是唯一凭据。
-export type ProfileName = "openapi" | "portal" | "customer" | "demo" | "mock";
+export type ProfileName = "openapi" | "portal" | "customer" | "demo" | "mock" | "public";
 
 // Zero-signup shared sandbox identity (hotel-be#32386): public demo
 // credentials on the pre-provisioned demo tenant chain. Deliberately
