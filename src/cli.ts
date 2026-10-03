@@ -27,6 +27,7 @@ import { createProductsCommand } from "./commands/products.ts";
 import { createCatalogsCommand } from "./commands/catalogs.ts";
 import { createConnectorsCommand } from "./commands/connectors.ts";
 import { createLookoutCommand } from "./commands/lookout.ts";
+import { createBillingCommand } from "./commands/billing.ts";
 import { createViewCommand } from "./commands/view.ts";
 import { createFxCommand } from "./commands/fx.ts";
 import { createApiCommand } from "./commands/api.ts";
@@ -153,6 +154,7 @@ function main(): void {
   program.addCommand(createCatalogsCommand(ctx));
   program.addCommand(createConnectorsCommand(ctx));
   program.addCommand(createLookoutCommand(ctx));
+  program.addCommand(createBillingCommand(ctx));
   program.addCommand(createViewCommand(ctx));
   program.addCommand(createFxCommand(ctx));
   program.addCommand(createApiCommand(ctx));

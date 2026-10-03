@@ -193,6 +193,9 @@ hbcli
 ├── connectors        suppliers, accessible (alias of account suppliers accessible; connect stays in account)
 ├── lookout           jobs list/get/pause/resume, runs list/get/rows/trigger/cancel,
 │                     reports list/get, insights price-trends/coverage-trends (writes need --confirm)
+├── billing           cost analytics/trend/monthly-bill/pricing-rule,
+│                     settlement overview/entries/payables/payouts, payouts create/cancel,
+│                     promo list/get (writes need --confirm)
 ├── view              homepage, retail-homepage
 ├── fx                rates (daily FX reference table, read-only)
 ├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint)
