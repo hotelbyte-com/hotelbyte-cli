@@ -25,6 +25,7 @@ import { createAccountCommand } from "./commands/account.ts";
 import { createViewCommand } from "./commands/view.ts";
 import { createFxCommand } from "./commands/fx.ts";
 import { createMcpCommand } from "./commands/mcp.ts";
+import { createMcpSetupCommand } from "./commands/mcp_setup.ts";
 import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
@@ -145,6 +146,8 @@ function main(): void {
   program.addCommand(createViewCommand(ctx));
   program.addCommand(createFxCommand(ctx));
   program.addCommand(createMcpCommand(ctx));
+  // `mcp setup` rides the mcp command group
+  program.commands.find((c) => c.name() === "mcp")?.addCommand(createMcpSetupCommand(ctx));
 
   // version / update
   program.command("version").description("Show version and installation path").action(showVersion);
