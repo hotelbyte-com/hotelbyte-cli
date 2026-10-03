@@ -1,3 +1,7 @@
+> ⚠️ **RETIRED (2026-10-03)** — superseded by `hbcli skill install`
+> (source: hotelbyte.com/skills/hotelbyte/SKILL.md). Kept for historical
+> reference (CLI-direct era, gotry #5); no longer maintained.
+
 ---
 name: cli-anything-hotelbyte
 description: HotelByte CLI (hbcli) — agent-native command line for hotel search, rates, two-phase booking, orders, team/subscription management, and a local MCP gateway for AI agents. Use when the user asks to search or book hotels, manage tenant portal operations, or connect an AI agent to HotelByte.
