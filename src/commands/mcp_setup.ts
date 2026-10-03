@@ -213,7 +213,7 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
       if (spec.kind === "claude-cli") {
         try {
           execSync("claude --version", { stdio: "ignore" });
-          execSync("claude mcp add hotelbyte --scope user -- hbcli mcp serve", { stdio: "inherit" });
+          execSync(`claude mcp add hotelbyte --scope user -- ${hbcliAbsolutePath()} mcp serve`, { stdio: "inherit" });
           steps.push("✓ `claude mcp add hotelbyte --scope user -- hbcli mcp serve` executed (user scope)");
           report.configured = "claude-mcp-add";
         } catch {
