@@ -190,6 +190,7 @@ hbcli
 ├── account           entity, subscriptions, suppliers, retail
 ├── products          list, get (portal /products inventory reads)
 ├── catalogs          list, get, create, hotels, add-hotels, remove-hotels (writes need --confirm)
+├── connectors        suppliers, accessible (alias of account suppliers accessible; connect stays in account)
 ├── view              homepage, retail-homepage
 ├── fx                rates (daily FX reference table, read-only)
 ├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint)
