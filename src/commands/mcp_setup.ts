@@ -27,7 +27,7 @@ import {
 
 type ClientId =
   | "claude-code" | "cursor" | "chatgpt" | "codex" | "claude-connectors"
-  | "grok" | "trae" | "vscode" | "cline" | "workbuddy" | "coze" | "cherry" | "generic";
+  | "grok" | "trae" | "vscode" | "cline" | "doubao" | "workbuddy" | "coze" | "cherry" | "generic";
 
 interface ClientSpec {
   label: string;
@@ -44,6 +44,7 @@ const CLIENTS: Record<ClientId, ClientSpec> = {
   trae: { label: "Trae / Traex", kind: "file" },
   vscode: { label: "VS Code · Copilot", kind: "file" },
   cline: { label: "Cline", kind: "file" },
+  doubao: { label: "豆包 Doubao (desktop connectors)", kind: "token" },
   workbuddy: { label: "WorkBuddy (Tencent)", kind: "token" },
   coze: { label: "Coze · 扣子", kind: "token" },
   cherry: { label: "Cherry Studio", kind: "token" },
@@ -142,6 +143,13 @@ function tokenGuide(id: ClientId, token: string, endpoint: string): string[] {
         "Claude → Settings → Extensions/Connectors → Add custom connector:",
         `  URL:             ${endpoint}`,
         `  Authentication:  Bearer token → ${token}`,
+      ];
+    case "doubao":
+      return [
+        "豆包电脑版 → 侧边栏 技能·连接器 → 新建 → 自定义连接器:",
+        `  URL:   ${endpoint}`,
+        `  token: ${token}`,
+        "（或命令方式：运行命令 hbcli、参数 mcp serve）",
       ];
     case "workbuddy":
       return [
