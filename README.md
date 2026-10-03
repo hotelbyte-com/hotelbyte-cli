@@ -121,6 +121,24 @@ hbcli auth customer-login --email guest@mail.com --code 123456 --attribution-tok
 hbcli --json search destinations --country-code US
 ```
 
+### Multiple local accounts (snapshot / restore)
+
+Named snapshots of the ticketed default slots (openapi/portal/customer), stored
+in the same credential store — switching never touches the slot keys:
+
+```bash
+hbcli auth accounts save work       # snapshot current ticketed slots as "work"
+hbcli auth accounts list            # all accounts, per-identity status; keys masked
+                                    # (first 4 + last 2), live snapshot marked
+hbcli auth accounts use home        # restore "home" into the default slots
+                                    # (overwrites the live slots — warned on stderr)
+hbcli auth accounts remove work     # delete a snapshot
+```
+
+`auth whoami` shows `account: <name>` when the default slots still match a
+snapshot, `anonymous` otherwise. Global flags (`--json`, `--env`) go before the
+subcommand: `hbcli --json auth accounts list`.
+
 ### Agent-friendly
 
 ```bash
@@ -181,6 +199,7 @@ hbcli mcp token --idle-seconds 3600   # custom idle window
 ```
 hbcli
 ├── auth              set-credentials, login, logout, whoami,
+│                     accounts save/list/use/remove (named multi-account snapshots),
 │                     send-code, check-domain, register (B 端 tenant self-registration),
 │                     customer-send-code, customer-login (C 端 email-code login/register)
 ├── search            hotel-list, hotel-rates, destinations, check-avail, hotel-detail, hotels-metadata
