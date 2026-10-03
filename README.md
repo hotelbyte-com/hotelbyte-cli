@@ -188,6 +188,8 @@ hbcli
 ├── orders            list, detail, dashboard, label, cancel, create-offline-booking, rebooking-pending
 ├── team              list, list-roles, invite, batch-invite, get, update
 ├── account           entity, subscriptions, suppliers, retail
+├── products          list, get (portal /products inventory reads)
+├── catalogs          list, get, create, hotels, add-hotels, remove-hotels (writes need --confirm)
 ├── view              homepage, retail-homepage
 ├── fx                rates (daily FX reference table, read-only)
 ├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint)
