@@ -155,6 +155,17 @@ describe("fetchCatalog", () => {
     }
   });
 
+  it("accepts the live envelope {methodMetas:[...], total} (UAT shape, 2026-10-04 smoke)", async () => {
+    const m = stubFetch(() => ({ code: 0, msg: "ok", data: { methodMetas: UNIT_METHODS, total: UNIT_METHODS.length } }));
+    try {
+      const methods = await fetchCatalog(unitCtx());
+      expect(methods).toHaveLength(2);
+      expect(methods[1]?.methodName).toBe("labelOrder");
+    } finally {
+      m.restore();
+    }
+  });
+
   it("rejects a non-array catalog response instead of returning garbage", async () => {
     const m = stubFetch(() => ({ code: 0, msg: "ok", data: { unexpected: true } }));
     try {

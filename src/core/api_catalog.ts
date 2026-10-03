@@ -89,20 +89,37 @@ function writeCache(env: string, methods: MethodMeta[]): CatalogCache {
 
 /**
  * Pull the full endpoint catalog from the server.
- * type="" + limit=0 = every method of every service (live-verified
- * 2026-10-03, docs/portal-cli-mcp-architecture.md §2; demo ticket suffices).
+ * type="" + limit=0 = every method of every service (demo ticket suffices).
+ *
+ * Response shape (live UAT, re-verified 2026-10-04 smoke): `data` is
+ * `{ methodMetas: MethodMeta[], total: number }`. A bare `MethodMeta[]` is
+ * also accepted (defensive forward compatibility).
  */
 export async function fetchCatalog(ctx: ApiCatalogCtx): Promise<MethodMeta[]> {
   const client = await ctx.client();
   const resp = await client.post<unknown>(CATALOG_ENDPOINT, { type: "", limit: 0 });
-  if (!Array.isArray(resp)) {
+  const methods = extractMethodMetas(resp);
+  if (!methods) {
     throw new HotelByteError(
       500,
-      `unexpected ${CATALOG_ENDPOINT} response: expected an array of method metadata`,
+      `unexpected ${CATALOG_ENDPOINT} response: expected method metadata (array or {methodMetas: [...]})`,
       CATALOG_ENDPOINT,
     );
   }
-  return resp as MethodMeta[];
+  return methods;
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Live shape `{methodMetas:[...], total}`; a bare array is accepted too. */
+function extractMethodMetas(resp: unknown): MethodMeta[] | null {
+  if (Array.isArray(resp)) return resp as MethodMeta[];
+  if (isPlainObject(resp) && Array.isArray(resp.methodMetas)) {
+    return resp.methodMetas as MethodMeta[];
+  }
+  return null;
 }
 
 export interface CatalogSnapshot {
