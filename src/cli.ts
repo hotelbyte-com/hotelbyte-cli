@@ -34,6 +34,22 @@ import { createApiCommand } from "./commands/api.ts";
 import { createMcpCommand } from "./commands/mcp.ts";
 import { createSkillCommand } from "./commands/skill.ts";
 import { createMcpSetupCommand } from "./commands/mcp_setup.ts";
+import { createInventoryCommand } from "./commands/inventory.ts";
+import { createRoommapCommand } from "./commands/roommap.ts";
+import { createReviewsCommand } from "./commands/reviews.ts";
+import { createGrowthCommand } from "./commands/growth.ts";
+import { createNotifyCommand } from "./commands/notify.ts";
+import { createStorefrontCommand } from "./commands/storefront.ts";
+import { createCrmCommand } from "./commands/crm.ts";
+import { createIdentityCommand } from "./commands/identity.ts";
+import { createMarketplaceCommand } from "./commands/marketplace.ts";
+import { createAgentsCommand } from "./commands/agents.ts";
+import { createRulesCommand } from "./commands/rules.ts";
+import { createWhitelabelCommand } from "./commands/whitelabel.ts";
+import { createCheckoutCommand } from "./commands/checkout.ts";
+import { createBiCommand } from "./commands/bi.ts";
+import { createOpsCommand } from "./commands/ops.ts";
+import { createDmsCommand } from "./commands/dms.ts";
 import type { Ctx } from "./commands/helpers.ts";
 
 // ── version ────────────────────────────────────────────────────────────
@@ -160,6 +176,22 @@ function main(): void {
   program.addCommand(createApiCommand(ctx));
   program.addCommand(createMcpCommand(ctx));
   program.addCommand(createSkillCommand(ctx));
+  program.addCommand(createInventoryCommand(ctx));
+  program.addCommand(createRoommapCommand(ctx));
+  program.addCommand(createReviewsCommand(ctx));
+  program.addCommand(createGrowthCommand(ctx));
+  program.addCommand(createNotifyCommand(ctx));
+  program.addCommand(createStorefrontCommand(ctx));
+  program.addCommand(createCrmCommand(ctx));
+  program.addCommand(createIdentityCommand(ctx));
+  program.addCommand(createMarketplaceCommand(ctx));
+  program.addCommand(createAgentsCommand(ctx));
+  program.addCommand(createRulesCommand(ctx));
+  program.addCommand(createWhitelabelCommand(ctx));
+  program.addCommand(createCheckoutCommand(ctx));
+  program.addCommand(createBiCommand(ctx));
+  program.addCommand(createOpsCommand(ctx));
+  program.addCommand(createDmsCommand(ctx));
   // `mcp setup` rides the mcp command group
   program.commands.find((c) => c.name() === "mcp")?.addCommand(createMcpSetupCommand(ctx));
 
