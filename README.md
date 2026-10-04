@@ -260,6 +260,25 @@ hbcli
 ├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint),
 │                     download (streaming file responses → --out), upload (multipart)
 ├── mcp               serve (local stdio gateway), token (static agent token)
+├── inventory         stop-sale list/create/lift/bulk, release-periods, calendar matrices,
+│                     reports commission/sales/inventory (writes need --confirm)
+├── roommap           map rooms/usage, annotation samples/review/stats,
+│                     evaluation test-sets/compare (writes need --confirm)
+├── reviews           list, create, rating-stats, scores list/detail/recalc (writes need --confirm)
+├── growth            prospects, campaigns (launch/pause), content generate, brand-kits,
+│                     dashboard (writes need --confirm)
+├── notify            templates, send email/notification, in-app inbox (writes need --confirm)
+├── storefront        news, community moderation, tours, learning (writes need --confirm)
+├── crm               clients, trips, notes, activities, workspace (writes need --confirm)
+├── identity          audit-logs, roles, mfa, preferences (writes need --confirm)
+├── marketplace       links, approvals, applications (writes need --confirm)
+├── agents            runs, skills, knowledge tree, dispatch (writes need --confirm)
+├── rules             list/get/metadata/factors, families upsert, simulate (writes need --confirm)
+├── whitelabel        config get/update, domains add/remove (writes need --confirm)
+├── checkout          intents create/get, payment start, links expire (writes need --confirm)
+├── bi                logs query, sessions, incidents clusters, order-analytics
+├── ops               price-cache, issues diagnose/repair, cron admin (writes need --confirm)
+├── dms               datasources, mysql/redis/tdengine query & exec (writes need --confirm)
 ├── version           Show version and install path
 └── update            Self-update to latest release
 ```
