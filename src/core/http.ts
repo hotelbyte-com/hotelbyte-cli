@@ -11,7 +11,9 @@
  * `Content-Disposition: attachment; filename="…"`, no {code,msg,data} envelope)
  * and accepts multipart/form-data on endpoints whose request type implements
  * MultipartRequestDecoder (single file part + ≤64-byte scalar parts; the
- * response is still the standard JSON envelope).
+ * response is still the standard JSON envelope). `postStream` (issue #45)
+ * consumes SSE `data:` line streams (A2UI events from the public presales
+ * agent) line by line.
  */
 
 import type { Profile } from "./config.ts";
@@ -185,6 +187,66 @@ export class HttpClient {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * POST expecting an SSE stream of `data: <payload>` lines (issue #45: the
+   * public presales agent streams A2UI v0.9 events). Each data payload is
+   * handed to `onData` verbatim as it arrives — parsing stays with the caller
+   * because events are heterogeneous. `event:`/`id:`/`retry:`/comment lines
+   * and empty data separators are skipped. Non-2xx keeps the standard
+   * contract: HotelByteError carrying the raw body (e.g. the rate limiter's
+   * `{"error":"too many requests..."}` on 429). The timeout bounds time-to-
+   * first-byte only — an LLM stream may legitimately run longer.
+   */
+  async postStream(path: string, body: unknown, onData: (data: string) => void): Promise<void> {
+    const url = `${this.profile.baseUrl}${path}`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const auth = getAuthHeader(this.profile);
+    if (auth) headers["Authorization"] = auth;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeout);
+
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers,
+        body: body !== undefined && body !== null ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (resp.status >= 400) {
+      throw new HotelByteError(resp.status, await resp.text(), path);
+    }
+    if (!resp.body) {
+      throw new HotelByteError(500, "empty stream body", path);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    // SSE line terminators are \n, \r\n or \r (in event order); splitting on
+    // all three keeps chunk boundaries (\r | \n split across reads) correct.
+    const processLine = (raw: string) => {
+      if (!raw.startsWith("data:")) return;
+      const payload = raw.slice(5).replace(/^ /, ""); // spec: strip one optional space
+      if (payload) onData(payload);
+    };
+
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r\n|\r|\n/);
+      buffer = lines.pop() ?? ""; // keep the trailing partial line
+      for (const line of lines) processLine(line);
+    }
+    buffer += decoder.decode(); // flush the decoder's tail
+    if (buffer) processLine(buffer);
   }
 
   private async _handle<T>(resp: Response, path: string): Promise<T> {

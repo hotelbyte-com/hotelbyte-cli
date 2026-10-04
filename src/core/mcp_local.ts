@@ -2,14 +2,17 @@
  * core/mcp_local.ts — local stdio MCP tool server (issue #30, architecture D4/D5).
  *
  * `hbcli mcp serve --local` runs THIS instead of the remote bridge: a
- * self-contained JSON-RPC 2.0 server on stdin/stdout exposing exactly three
- * GENERIC tools (no domain tool schema is ever hardcoded here — domain
- * schemas stay single-sourced on the hosted gateway, per the architecture's
- * "don't duplicate the two faces" rule):
+ * self-contained JSON-RPC 2.0 server on stdin/stdout exposing three GENERIC
+ * tools (no domain tool schema is hardcoded here — domain schemas stay
+ * single-sourced on the hosted gateway, per the architecture's
+ * "don't duplicate the two faces" rule) plus ONE deliberate exception, the
+ * public unauthenticated presales agent (see docs D4 note, issue #45):
  *
  *   portal.catalog   search the endpoint catalog (filter/service/limit)
  *   portal.describe  full metadata for one endpoint
  *   portal.call      authed POST to any /api/ JSON endpoint
+ *   presales.chat    public landing-page advisor (no credentials; SSE in,
+ *                    aggregated text out)
  *
  * Discovery/classification/auth reuse core/api_catalog.ts (getApiPaths is the
  * only authority) and the CLI credential store via the caller-injected client
@@ -35,6 +38,7 @@ import {
   type ApiCatalogCtx,
   type MethodMeta,
 } from "./api_catalog.ts";
+import { streamPresalesChat } from "./presales.ts";
 import { VERSION } from "./version.ts";
 
 export const LOCAL_MCP_SERVER_NAME = "hotelbyte-portal";
@@ -52,7 +56,8 @@ export interface LocalMcpOptions {
 
 // ── tool surface ────────────────────────────────────────────────────────
 
-/** The three generic tools — stable surface, zero domain schemas (D4). */
+/** The three generic tools — stable surface, zero domain schemas (D4) — plus
+ * the one public-surface exception (presales.chat, D4 note / issue #45). */
 export const LOCAL_TOOLS = [
   {
     name: "portal.catalog",
@@ -98,6 +103,25 @@ export const LOCAL_TOOLS = [
         confirm: { type: "boolean", description: "Explicit confirmation for write operations; required true or the call is rejected" },
       },
       required: ["path"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "presales.chat",
+    description:
+      "Public pre-sales AI advisor (landing-page agent — NO credentials needed, works without login). " +
+      "Sends one visitor message and returns the aggregated A2UI v0.9 SSE event text. " +
+      "Server rate-limits per IP/visitor; a 429 is surfaced as a tool error, not retried.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        message: { type: "string", description: "Visitor message" },
+        locale: { type: "string", description: "Content locale (server default: zh)" },
+        pageContext: { type: "string", description: "Landing page path the visitor is on (server default: /)" },
+        sessionId: { type: "string", description: "Continue an existing chat session (multi-turn context)" },
+        visitorId: { type: "string", description: "Stable visitor identifier (session continuity + rate-limit key)" },
+      },
+      required: ["message"],
       additionalProperties: false,
     },
   },
@@ -257,13 +281,37 @@ async function toolCall(params: Record<string, unknown>, opts: LocalMcpOptions):
   }
 }
 
+/**
+ * presales.chat (issue #45): the one public domain tool on the local face.
+ * Aggregates the A2UI SSE events into {events, text}; no credentials touched.
+ */
+async function toolPresalesChat(params: Record<string, unknown>, opts: LocalMcpOptions): Promise<ToolOutput> {
+  if (typeof params.message !== "string" || !params.message.trim()) {
+    return toolError("message is required (the visitor's question for the pre-sales advisor)");
+  }
+  const events: string[] = [];
+  try {
+    await streamPresalesChat(opts.ctx.env(), {
+      message: params.message,
+      locale: typeof params.locale === "string" ? params.locale : undefined,
+      pageContext: typeof params.pageContext === "string" ? params.pageContext : undefined,
+      sessionId: typeof params.sessionId === "string" ? params.sessionId : undefined,
+      visitorId: typeof params.visitorId === "string" ? params.visitorId : undefined,
+    }, (data) => events.push(data));
+  } catch (e) {
+    return toolErrorFrom(e);
+  }
+  return toolOk({ events: events.length, text: events.join("\n") });
+}
+
 async function callTool(name: unknown, params: unknown, opts: LocalMcpOptions): Promise<ToolOutput> {
   if (!isPlainObject(params)) return toolError("params must be a JSON object");
   switch (name) {
     case "portal.catalog": return toolCatalog(params, opts);
     case "portal.describe": return toolDescribe(params, opts);
     case "portal.call": return toolCall(params, opts);
-    default: return toolError(`unknown tool "${String(name)}" (available: portal.catalog, portal.describe, portal.call)`);
+    case "presales.chat": return toolPresalesChat(params, opts);
+    default: return toolError(`unknown tool "${String(name)}" (available: portal.catalog, portal.describe, portal.call, presales.chat)`);
   }
 }
 

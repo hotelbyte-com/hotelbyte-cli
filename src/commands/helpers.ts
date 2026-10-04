@@ -12,7 +12,7 @@
  * distinction to the user.
  */
 
-import { loadProfile, clearTicket, type Profile } from "../core/config.ts";
+import { loadProfile, clearTicket, clearMockSession, loadMockSession, type Profile } from "../core/config.ts";
 import { HttpClient, HotelByteError } from "../core/http.ts";
 import { authenticateOpenapi, authenticatePortal } from "../core/auth.ts";
 import { emit, error } from "../utils/output.ts";
@@ -31,6 +31,8 @@ function isUsableTicket(t: string | undefined): boolean {
  * Auto-detects auth mode from stored credentials.
  *
  * Auth precedence:
+ *   0. active view-as (mock) session → use the impersonation ticket; commands
+ *      run as the target user until `auth mock-exit` (issue #44)
  *   1. portal profile with a valid cached ticket → use portal (admin context)
  *   2. openapi profile (appKey/appSecret or cached ticket) → use openapi
  *   3. portal profile but portal login unavailable or yields no usable ticket →
@@ -39,6 +41,16 @@ function isUsableTicket(t: string | undefined): boolean {
  */
 export async function makeClient(ctx: Ctx): Promise<HttpClient> {
   const env = ctx.env();
+
+  // View-as impersonation (issue #44): outranks every local identity — the
+  // whole point is running commands as the target user. loadMockSession reads
+  // the store only, so HOTELBYTE_TOKEN cannot fake an active session.
+  const mock = loadMockSession(env);
+  if (mock) {
+    // loadProfile only for baseUrl resolution (env overrides stay single-sourced).
+    return new HttpClient({ ...loadProfile("mock", env), ticket: mock.ticket });
+  }
+
   const portalProfile = loadProfile("portal", env);
   const apiProfile = loadProfile("openapi", env);
   const customerProfile = loadProfile("customer", env);
@@ -100,6 +112,9 @@ export async function withAuthRetry<T>(ctx: Ctx, attempt: (client: HttpClient) =
   } catch (e: any) {
     const stale = e instanceof HotelByteError && (e.status === 401 || e.status === 1_00_00_0401);
     if (!stale) throw e;
+    // Stale view-as session: drop ticket AND metadata so the retry falls back
+    // to the caller's own identity (issue #44).
+    clearMockSession(ctx.env());
     clearTicket("openapi", ctx.env());
     clearTicket("portal", ctx.env());
     return attempt(await makeClient(ctx));

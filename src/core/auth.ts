@@ -12,8 +12,8 @@
  *                    (验证通过即登录；新邮箱即注册)
  */
 
-import type { Profile } from "./config.ts";
-import { saveProfile } from "./config.ts";
+import type { MockSession, Profile } from "./config.ts";
+import { saveMockSession, saveProfile } from "./config.ts";
 import { HttpClient, HotelByteError } from "./http.ts";
 
 export function extractTicket(resp: any): string {
@@ -162,4 +162,61 @@ export async function loginByCustomerEmailCode(
   profile.ticket = token;
   saveProfile(profile);
   return { resp, token };
+}
+
+// ── View-as impersonation (issue #44, api/service/auth_mock.go) ──────────
+//
+// mockStart mints an impersonation JWT for the target user; the CLI stores it
+// as the "mock" slot so every subsequent command rides it (makeClient priority
+// 0) until `auth mock-exit` or TTL expiry. Wire contract (user/protocol/mock.go):
+//   req  {targetUserId, reason, sessionTtl?, source?}   (sessionTtl, lowercase l)
+//   resp {token, targetUser, originalUser, sessionId, expiresTime, source?}
+
+/** Display summary out of a backend domain.User object (key → username → id). */
+function userSummary(u: any): string | undefined {
+  if (!u || typeof u !== "object") return undefined;
+  if (typeof u.key === "string" && u.key) return u.key;
+  if (typeof u.username === "string" && u.username) return u.username;
+  return u.id !== undefined && u.id !== null ? String(u.id) : undefined;
+}
+
+export interface MockStartInput {
+  targetUserId: string;
+  /** Session TTL in seconds; omitted → server default 7200 (auth_mock.go:18). */
+  ttl?: number;
+  /** Entry-point provenance (e.g. "customer_detail"); recorded, never authorized on. */
+  source?: string;
+  /** Audit reason (protocol marks it required; CLI defaults to a provenance string). */
+  reason?: string;
+}
+
+/**
+ * POST /api/auth/mockStart with an already-authed client (makeClient — the
+ * operator's own identity) and persist the returned session in the "mock"
+ * slot of `env`. Takes a client instead of a Profile because impersonation
+ * must ride the auto-auth precedence without re-entering it mid-flow.
+ */
+export async function mockStart(client: HttpClient, env: string, req: MockStartInput): Promise<{ resp: any; session: MockSession }> {
+  if (!String(req.targetUserId ?? "").trim()) {
+    throw new HotelByteError(400, "target-user-id is required", "/api/auth/mockStart");
+  }
+  const resp = await client.post("/api/auth/mockStart", {
+    targetUserId: req.targetUserId,
+    sessionTtl: req.ttl && req.ttl > 0 ? req.ttl : undefined,
+    source: req.source,
+    reason: req.reason,
+  });
+  const token = resp && typeof resp === "object" ? (resp as any).token : undefined;
+  if (typeof token !== "string" || !token) {
+    throw new HotelByteError(500, `Could not extract token from mockStart response: ${JSON.stringify(resp)}`, "/api/auth/mockStart");
+  }
+  const session: MockSession = {
+    ticket: token,
+    sessionId: typeof (resp as any).sessionId === "string" ? (resp as any).sessionId : undefined,
+    expiresTime: typeof (resp as any).expiresTime === "string" ? (resp as any).expiresTime : undefined,
+    targetUser: userSummary((resp as any).targetUser),
+    originalUser: userSummary((resp as any).originalUser),
+  };
+  saveMockSession(env, session);
+  return { resp, session };
 }

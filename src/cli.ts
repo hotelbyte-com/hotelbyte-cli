@@ -29,6 +29,7 @@ import { createConnectorsCommand } from "./commands/connectors.ts";
 import { createLookoutCommand } from "./commands/lookout.ts";
 import { createBillingCommand } from "./commands/billing.ts";
 import { createViewCommand } from "./commands/view.ts";
+import { createPresalesCommand } from "./commands/presales.ts";
 import { createFxCommand } from "./commands/fx.ts";
 import { createApiCommand } from "./commands/api.ts";
 import { createMcpCommand } from "./commands/mcp.ts";
@@ -156,6 +157,7 @@ function main(): void {
   program.addCommand(createLookoutCommand(ctx));
   program.addCommand(createBillingCommand(ctx));
   program.addCommand(createViewCommand(ctx));
+  program.addCommand(createPresalesCommand(ctx));
   program.addCommand(createFxCommand(ctx));
   program.addCommand(createApiCommand(ctx));
   program.addCommand(createMcpCommand(ctx));

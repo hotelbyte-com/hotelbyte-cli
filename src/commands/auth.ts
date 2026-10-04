@@ -7,11 +7,35 @@
  *   send-code/register            → Tenant self-registration (email + OTP code, B 端)
  *   customer-send-code/customer-login → Customer email-code login (C 端, advisor 的客户);
  *                                       a new email is auto-registered
+ *   accounts save/list/use/remove → named multi-account snapshots of the
+ *                                       default slots (issue #43)
+ *   mockable/impersonate/mock-status/mock-exit → server-side view-as
+ *                                       impersonation (issue #44)
  *   whoami / logout   → inspect / clear session
  */
 
 import { Command } from "commander";
-import { DEFAULT_ENV, ENVIRONMENTS, loadProfile, saveProfile, clearTicket, type Profile } from "../core/config.ts";
+import {
+  DEFAULT_ENV,
+  ENVIRONMENTS,
+  loadProfile,
+  saveProfile,
+  clearTicket,
+  clearMockSession,
+  loadMockSession,
+  accountMatchesCurrent,
+  applyAccountRestore,
+  getAccount,
+  isValidAccountName,
+  listAccounts,
+  planAccountRestore,
+  removeAccount,
+  saveAccount,
+  snapshotTicketedSlots,
+  type AccountIdentity,
+  type Profile,
+  type SlotCredentials,
+} from "../core/config.ts";
 import { HotelByteError } from "../core/http.ts";
 import {
   authenticatePortal,
@@ -20,8 +44,10 @@ import {
   registerTenantAccount,
   sendCustomerLoginCode,
   loginByCustomerEmailCode,
+  mockStart,
 } from "../core/auth.ts";
-import { emit, error } from "../utils/output.ts";
+import { run, withAuthRetry } from "./helpers.ts";
+import { emit, error, warn, maskSecret } from "../utils/output.ts";
 
 type Ctx = { jsonMode: () => boolean; env: () => string };
 
@@ -38,6 +64,31 @@ function fail(e: any, jsonMode: boolean): never {
 // Bare profile for public (pre-auth) endpoints: baseUrl only, no ticket.
 function publicProfile(name: Profile["name"], env: string): Profile {
   return { name, env, baseUrl: ENVIRONMENTS[env] ?? ENVIRONMENTS[DEFAULT_ENV] };
+}
+
+// ── accounts helpers (issue #43) ────────────────────────────────────────
+
+// Per-identity display row for `accounts list`: username/email in full,
+// key ids masked (first 4 + last 2), tickets never rendered (has_ticket only).
+function identityRow(id: AccountIdentity, creds?: SlotCredentials): Record<string, unknown> | null {
+  if (!creds) return null;
+  if (id === "openapi") {
+    return { app_key: maskSecret(creds.appKey), has_ticket: !!creds.ticket };
+  }
+  if (id === "customer") {
+    return { email: creds.username, has_ticket: !!creds.ticket };
+  }
+  return { username: creds.username, has_ticket: !!creds.ticket };
+}
+
+// Latest-saved snapshot whose identities all still equal the live default
+// slots; null when the current session matches no snapshot (whoami renders
+// that as "anonymous").
+function currentAccountName(env: string): string | null {
+  const matches = Object.entries(listAccounts())
+    .filter(([, snap]) => accountMatchesCurrent(snap, env))
+    .sort((a, b) => String(b[1].savedAt).localeCompare(String(a[1].savedAt)));
+  return matches[0]?.[0] ?? null;
 }
 
 export function createAuthCommand(ctx: Ctx): Command {
@@ -187,6 +238,165 @@ export function createAuthCommand(ctx: Ctx): Command {
       }
     });
 
+  // ── accounts (issue #43: local multi-account snapshot/restore) ──────────
+  const accounts = new Command("accounts").description(
+    "Named snapshots of the current default slots (multi-account switching)",
+  );
+
+  // accounts save <name>
+  accounts
+    .command("save")
+    .description("Snapshot the current ticketed default slots (openapi/portal/customer) as a named account")
+    .argument("<name>", "Account name")
+    .action((name: string) => {
+      if (!isValidAccountName(name)) {
+        error(`Invalid account name "${name}" (letters/digits/._@-, starting alphanumeric, ≤ 64 chars)`, ctx.jsonMode());
+        process.exit(1);
+      }
+      const env = ctx.env();
+      const { snapshot, identities } = snapshotTicketedSlots(env);
+      if (identities.length === 0) {
+        error(
+          "No ticketed credentials to save for this environment. Run 'auth login', 'auth set-credentials' or 'auth customer-login' first.",
+          ctx.jsonMode(),
+        );
+        process.exit(1);
+      }
+      const existing = getAccount(name);
+      if (existing) warn(`account "${name}" already exists (saved ${existing.savedAt}); replacing`);
+      saveAccount(name, snapshot);
+      emit({ status: "saved", account: name, env, identities, savedAt: snapshot.savedAt }, ctx.jsonMode());
+    });
+
+  // accounts list
+  accounts
+    .command("list")
+    .description("List saved accounts with per-identity status (keys masked) and which one matches the current default slots")
+    .action(() => {
+      const env = ctx.env();
+      const rows = Object.entries(listAccounts()).map(([name, snap]) => ({
+        name,
+        savedAt: snap.savedAt,
+        current: accountMatchesCurrent(snap, env),
+        openapi: identityRow("openapi", snap.openapi),
+        portal: identityRow("portal", snap.portal),
+        customer: identityRow("customer", snap.customer),
+      }));
+      emit({ env, account_count: rows.length, current: currentAccountName(env), accounts: rows }, ctx.jsonMode());
+    });
+
+  // accounts use <name>
+  accounts
+    .command("use")
+    .description("Restore a saved account into the current environment's default slots (overwrites the live slots)")
+    .argument("<name>", "Account name")
+    .action((name: string) => {
+      const env = ctx.env();
+      const snap = getAccount(name);
+      if (!snap) {
+        error(`Account "${name}" not found. Run 'auth accounts list' to see saved accounts.`, ctx.jsonMode());
+        process.exit(1);
+      }
+      const plan = planAccountRestore(snap, env);
+      if (plan.restored.length > 0 || plan.cleared.length > 0) {
+        const detail: string[] = [];
+        if (plan.restored.length > 0) detail.push(`overwriting slots: ${plan.restored.join(", ")}`);
+        if (plan.cleared.length > 0) detail.push(`clearing tickets: ${plan.cleared.join(", ")}`);
+        warn(`accounts use "${name}" (env ${env}) — ${detail.join("; ")}`);
+      }
+      applyAccountRestore(snap, env);
+      emit({ status: "restored", account: name, env, restored: plan.restored, cleared: plan.cleared }, ctx.jsonMode());
+    });
+
+  // accounts remove <name>
+  accounts
+    .command("remove")
+    .description("Delete a saved account snapshot (default slots are untouched)")
+    .argument("<name>", "Account name")
+    .action((name: string) => {
+      if (!removeAccount(name)) {
+        error(`Account "${name}" not found. Run 'auth accounts list' to see saved accounts.`, ctx.jsonMode());
+        process.exit(1);
+      }
+      emit({ status: "removed", account: name }, ctx.jsonMode());
+    });
+
+  auth.addCommand(accounts);
+
+  // ── view-as impersonation (issue #44, backend auth_mock.go) ─────────────
+
+  // mockable — users of one customer entity the operator may impersonate
+  auth
+    .command("mockable")
+    .description("List the users of a customer entity that can be impersonated (listMockableUsers)")
+    .requiredOption("--customer-id <id>", "Customer entity ID")
+    .action(async (opts) => {
+      await run(ctx, "/api/auth/listMockableUsers", { customerId: opts.customerId });
+    });
+
+  // impersonate — start a view-as session (mockStart)
+  auth
+    .command("impersonate")
+    .description(
+      "Start a view-as session as another user (mockStart); the ticket is stored in the mock slot and used by every command until 'auth mock-exit'",
+    )
+    .requiredOption("--target-user-id <id>", "User ID to impersonate")
+    .option("--ttl <seconds>", "Session TTL in seconds (server default 7200)", (v: string) => Number(v), 0)
+    .option("--source <source>", "Entry-point provenance recorded by the backend (e.g. customer_detail); does not change authorization")
+    .option("--reason <text>", "Audit reason for starting the impersonation", "hbcli auth impersonate")
+    .action(async (opts) => {
+      try {
+        const env = ctx.env();
+        const { session } = await withAuthRetry(ctx, (client) =>
+          mockStart(client, env, {
+            targetUserId: opts.targetUserId,
+            ttl: opts.ttl > 0 ? opts.ttl : undefined,
+            source: opts.source,
+            reason: opts.reason,
+          }),
+        );
+        // The impersonation ticket is persisted in the mock slot, never echoed.
+        emit({
+          status: "impersonating",
+          env,
+          target_user: session.targetUser,
+          original_user: session.originalUser,
+          session_id: session.sessionId,
+          expires_time: session.expiresTime,
+          token_saved: true,
+        }, ctx.jsonMode());
+      } catch (e: any) {
+        fail(e, ctx.jsonMode());
+      }
+    });
+
+  // mock-status — inspect the server-side view-as session
+  auth
+    .command("mock-status")
+    .description("Show the view-as session status (mockStatus; rides the impersonation ticket when one is active)")
+    .action(async () => {
+      await run(ctx, "/api/auth/mockStatus", {});
+    });
+
+  // mock-exit — end the view-as session; the local mock slot is cleared even
+  // when the API call fails (best effort server-side, guaranteed client-side).
+  auth
+    .command("mock-exit")
+    .description("End the active view-as session (mockExit) and clear the local mock slot")
+    .action(async () => {
+      let apiOk = true;
+      try {
+        await withAuthRetry(ctx, (client) => client.post("/api/auth/mockExit", {}));
+      } catch (e: any) {
+        if (!(e instanceof HotelByteError)) throw e; // not an API failure — crash loudly
+        apiOk = false;
+        warn(`mockExit call failed (${e.message}); clearing the local mock session anyway`);
+      } finally {
+        clearMockSession(ctx.env());
+      }
+      emit({ status: "mock_exited", env: ctx.env(), api_ok: apiOk }, ctx.jsonMode());
+    });
+
   // logout
   auth
     .command("logout")
@@ -206,8 +416,20 @@ export function createAuthCommand(ctx: Ctx): Command {
       const apiProfile = loadProfile("openapi", ctx.env());
       const portalProfile = loadProfile("portal", ctx.env());
       const customerProfile = loadProfile("customer", ctx.env());
+      // Active view-as session (issue #44): commands currently run as the
+      // target user — surface it so the local slots below read as "who you
+      // are", not "who you act as".
+      const mock = loadMockSession(ctx.env());
       emit({
         env: ctx.env(),
+        // Named account when the default slots still match a snapshot (issue #43).
+        account: currentAccountName(ctx.env()) ?? "anonymous",
+        impersonating: mock ? {
+          target_user: mock.targetUser,
+          original_user: mock.originalUser,
+          session_id: mock.sessionId,
+          expires_time: mock.expiresTime,
+        } : null,
         api_key: apiProfile.appKey ? { configured: true, has_ticket: !!apiProfile.ticket } : { configured: false },
         portal: portalProfile.username ? { configured: true, username: portalProfile.username, has_ticket: !!portalProfile.ticket } : { configured: false },
         customer: customerProfile.ticket ? { configured: true, email: customerProfile.username, has_ticket: true } : { configured: false },

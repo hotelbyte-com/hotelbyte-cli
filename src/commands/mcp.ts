@@ -10,7 +10,7 @@
  *   { "mcpServers": { "hotelbyte": { "command": "hbcli", "args": ["mcp", "serve"] } } }
  *
  * `--local` switches to the in-process generic tool face
- * (portal.catalog/describe/call, core/mcp_local.ts — architecture D4) instead
+ * (portal.catalog/describe/call + the public presales.chat, core/mcp_local.ts — architecture D4) instead
  * of forwarding to the hosted bridge.
  *
  * Env/lane switching rides the existing global --env flag; --url/--token are
@@ -38,7 +38,7 @@ export function createMcpCommand(ctx: Ctx): Command {
   mcp
     .command("serve")
     .description("Run the local stdio MCP gateway for AI agents (Claude Code, Codex, Cursor, ...)")
-    .option("--local", "Serve the local generic tool face (portal.catalog/describe/call) instead of forwarding to the hosted /mcp bridge (--url/--token do not apply)", false)
+    .option("--local", "Serve the local tool face (portal.catalog/describe/call, presales.chat) instead of forwarding to the hosted /mcp bridge (--url/--token do not apply)", false)
     .option("--url <url>", "Remote /mcp endpoint override (default: <baseUrl>/mcp of --env)")
     .option("--token <token>", "Bearer token override (default: stored credentials)")
     .option("--demo", "Use the shared sandbox demo identity (hotel-be#32386)")
@@ -58,7 +58,7 @@ export function createMcpCommand(ctx: Ctx): Command {
           },
         };
         console.error(
-          `hbcli mcp local tool server (env=${env}${opts.demo ? ", demo identity" : ""}) — portal.catalog / portal.describe / portal.call`,
+          `hbcli mcp local tool server (env=${env}${opts.demo ? ", demo identity" : ""}) — portal.catalog / portal.describe / portal.call / presales.chat`,
         );
         const rl = createInterface({ input: process.stdin, terminal: false });
         await runLocalMcpServer(
