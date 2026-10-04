@@ -121,6 +121,61 @@ hbcli auth customer-login --email guest@mail.com --code 123456 --attribution-tok
 hbcli --json search destinations --country-code US
 ```
 
+### Multiple local accounts (snapshot / restore)
+
+Named snapshots of the ticketed default slots (openapi/portal/customer), stored
+in the same credential store — switching never touches the slot keys:
+
+```bash
+hbcli auth accounts save work       # snapshot current ticketed slots as "work"
+hbcli auth accounts list            # all accounts, per-identity status; keys masked
+                                    # (first 4 + last 2), live snapshot marked
+hbcli auth accounts use home        # restore "home" into the default slots
+                                    # (overwrites the live slots — warned on stderr)
+hbcli auth accounts remove work     # delete a snapshot
+```
+
+`auth whoami` shows `account: <name>` when the default slots still match a
+snapshot, `anonymous` otherwise. Global flags (`--json`, `--env`) go before the
+subcommand: `hbcli --json auth accounts list`.
+
+### View as customer (server-side impersonation)
+
+Admins can run commands as another user via the backend mock session family
+(`/api/auth/mockStart`); the impersonation ticket is stored in the `mock` slot
+and **outranks your own logins** until `auth mock-exit` (or the TTL expires —
+default 7200s, a stale ticket falls back to your own identity on the next
+command):
+
+```bash
+hbcli auth mockable --customer-id 77                  # users you may impersonate
+hbcli auth impersonate --target-user-id 12345 \
+  --source customer_detail --reason "support call"    # start the session
+hbcli auth mock-status                                # session + banned actions
+hbcli auth mock-exit                                  # end it, clear the slot
+```
+
+Permission model (backend-authoritative, `api/service/auth_mock.go`): platform
+users may mock any customer's users; tenant admins need the MockUser +
+booking privileges within their tenant scope; customer users can never mock.
+`auth whoami` shows `impersonating: {target_user, original_user, expires_time}`
+while a session is active.
+
+### Pre-sales AI advisor (public)
+
+No login required — this is the landing-page agent surface:
+
+```bash
+hbcli presales chat "Do you support pets?" --locale zh --page-context /pricing
+hbcli --json presales chat "hi"     # raw A2UI SSE data lines (JSONL) for agents
+hbcli presales feedback --email you@corp.com --message-type demo_request \
+  --company "Acme" --message "want a demo" --locale en
+```
+
+`chat` prints each A2UI v0.9 event as it arrives; `feedback` answers with
+`{success, message}`. The server rate-limits per IP and per visitor — a 429 is
+surfaced verbatim, never retried.
+
 ### Agent-friendly
 
 ```bash
@@ -138,7 +193,8 @@ verbatim to the hosted `/mcp` endpoint. One binary = CLI + local MCP gateway.
 `hbcli mcp serve --local` switches the same command to the local tool face —
 three generic tools (`portal.catalog` / `portal.describe` / `portal.call`) served
 in-process over the stored credentials (zero backend deploy, writes need
-`confirm: true`); wire it with `hbcli mcp setup <client> --local`.
+`confirm: true`), plus the public `presales.chat` advisor (no credentials
+needed); wire it with `hbcli mcp setup <client> --local`.
 
 ```bash
 hbcli mcp serve                  # stored credentials, current --env
@@ -181,6 +237,8 @@ hbcli mcp token --idle-seconds 3600   # custom idle window
 ```
 hbcli
 ├── auth              set-credentials, login, logout, whoami,
+│                     accounts save/list/use/remove (named multi-account snapshots),
+│                     mockable/impersonate/mock-status/mock-exit (view-as impersonation),
 │                     send-code, check-domain, register (B 端 tenant self-registration),
 │                     customer-send-code, customer-login (C 端 email-code login/register)
 ├── search            hotel-list, hotel-rates, destinations, check-avail, hotel-detail, hotels-metadata
@@ -197,6 +255,7 @@ hbcli
 │                     settlement overview/entries/payables/payouts, payouts create/cancel,
 │                     promo list/get (writes need --confirm)
 ├── view              homepage, retail-homepage
+├── presales          chat (SSE A2UI advisor), feedback (lead/demo_request/human_handoff) — public, no login
 ├── fx                rates (daily FX reference table, read-only)
 ├── api               catalog, describe, call (L0 passthrough to any /api/ JSON endpoint),
 │                     download (streaming file responses → --out), upload (multipart)
