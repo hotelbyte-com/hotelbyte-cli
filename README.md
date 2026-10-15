@@ -212,6 +212,32 @@ Agent config (Claude Code `.mcp.json`, Cursor, Codex):
 - Transport-only bridge: tool schemas always come from the remote `tools/list`; the gateway never hardcodes them (no drift).
 - Diagnostics go to stderr; stdout is the protocol channel.
 
+### Try the shared sandbox, then use your own tenant
+
+Run `hbcli mcp setup cursor --demo` (or replace `cursor` with your client)
+without registering. `hbcli mcp serve --demo` uses the same shared sandbox
+identity and keeps your personal credentials separate. Demo setup prints the
+upgrade path; demo serve prints it on stderr so stdout stays valid JSON-RPC.
+
+For your own orders, supplier rules, markup and customers:
+
+```bash
+hbcli auth send-code --email you@company.com
+hbcli auth register --email you@company.com --password 'AtLeast8Chars' \
+  --tenant-name "My Travel" --otp-code 123456
+hbcli mcp setup cursor
+```
+
+After registration, stdio setup uses your saved portal login. If you previously
+used demo mode with Codex/Grok/Trae, remove `--demo` from the existing HotelByte
+MCP server arguments too; setup preserves existing TOML entries. Static-token
+clients instead need your own API credentials stored with
+`hbcli auth set-credentials --app-key YOUR_KEY --app-secret YOUR_SECRET` before
+rerunning setup.
+
+Ask your agent to call
+`tenant.enableDemoSuppliers` with `confirm=true` to enable sandbox inventory.
+
 ### Static agent tokens (hosted platforms)
 
 For agents that run where you cannot install binaries (Claude web connectors,

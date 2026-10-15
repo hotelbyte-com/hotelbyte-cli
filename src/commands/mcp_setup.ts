@@ -25,6 +25,7 @@ import {
   resolveEndpoint,
 } from "../core/mcp_bridge.ts";
 import { DEMO_CREDENTIALS } from "../core/config.ts";
+import { DEMO_UPGRADE_HINT } from "../core/demo_upgrade.ts";
 import { installSkillForClient, SKILL_CAPABLE_CLIENTS, type ClientId as SkillClientId } from "./skill.ts";
 
 type ClientId =
@@ -303,6 +304,8 @@ export function createMcpSetupCommand(ctx: Ctx): Command {
       } else {
         steps.push(`· ${spec.label} has no native skills directory — the skill knowledge rides the MCP tool descriptions`);
       }
+
+      if (demoMode) steps.push(DEMO_UPGRADE_HINT);
 
       if (ctx.jsonMode()) {
         emit({ ...report, steps }, true);
