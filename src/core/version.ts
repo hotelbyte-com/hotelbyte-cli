@@ -5,4 +5,4 @@
  * local MCP server's serverInfo) so the version is declared exactly once.
  */
 
-export const VERSION = "0.0.4";
+export const VERSION = "0.0.5";
