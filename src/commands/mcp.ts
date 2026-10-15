@@ -30,6 +30,7 @@ import {
 } from "../core/mcp_bridge.ts";
 import { runLocalMcpServer } from "../core/mcp_local.ts";
 import { HttpClient } from "../core/http.ts";
+import { DEMO_UPGRADE_HINT } from "../core/demo_upgrade.ts";
 import type { ApiCatalogCtx } from "../core/api_catalog.ts";
 
 export function createMcpCommand(ctx: Ctx): Command {
@@ -45,6 +46,7 @@ export function createMcpCommand(ctx: Ctx): Command {
     .option("--timeout-ms <ms>", "Upstream request timeout", parseInt)
     .action(async (opts: { local?: boolean; url?: string; token?: string; timeoutMs?: number; demo?: boolean }) => {
       const env = ctx.env();
+      if (opts.demo) console.error(DEMO_UPGRADE_HINT);
 
       // --local: in-process tool server (architecture D4). Auth stays lazy —
       // resolve the ticket per tool call so initialize/tools/list (and
