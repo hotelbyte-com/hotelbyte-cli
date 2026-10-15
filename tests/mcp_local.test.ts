@@ -16,6 +16,7 @@ import { existsSync, rmSync, mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import assert from "node:assert/strict";
 import { ENVIRONMENTS } from "../src/core/config.ts";
 import { HttpClient, HotelByteError } from "../src/core/http.ts";
 import { CATALOG_ENDPOINT } from "../src/core/api_catalog.ts";
@@ -90,6 +91,17 @@ const logsOf = () => {
 const callFrame = (id: unknown, name: string, args: Record<string, unknown>) =>
   ({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Assert an object before inspecting unknown JSON-RPC result fields. */
+function resultObject(resp: Awaited<ReturnType<typeof dispatchLocalMessage>>): Record<string, unknown> {
+  assert(resp !== null, "expected a JSON-RPC response");
+  assert(isRecord(resp.result), "expected a result object");
+  return resp.result;
+}
+
 /** unwrap: tools/call result → { text, isError } */
 function toolPayload(resp: any): { payload: any; isError: boolean } {
   const result = resp.result;
@@ -107,15 +119,15 @@ describe("initialize", () => {
       { ctx: unitCtx() },
     );
     expect(resp).not.toBeNull();
-    expect(resp!.result.protocolVersion).toBe("2024-11-05");
-    expect(resp!.result.capabilities).toEqual({ tools: { listChanged: false } });
-    expect(resp!.result.serverInfo).toEqual({ name: LOCAL_MCP_SERVER_NAME, version: VERSION });
+    expect(resultObject(resp).protocolVersion).toBe("2024-11-05");
+    expect(resultObject(resp).capabilities).toEqual({ tools: { listChanged: false } });
+    expect(resultObject(resp).serverInfo).toEqual({ name: LOCAL_MCP_SERVER_NAME, version: VERSION });
     expect(resp!.id).toBe(1);
   });
 
   it("falls back to the default protocolVersion when the client sends none", async () => {
     const resp = await dispatchLocalMessage({ jsonrpc: "2.0", id: "a", method: "initialize" }, { ctx: unitCtx() });
-    expect(resp!.result.protocolVersion).toBe("2025-06-18");
+    expect(resultObject(resp).protocolVersion).toBe("2025-06-18");
   });
 });
 
@@ -136,13 +148,15 @@ describe("notifications and framing", () => {
   it("unknown method → -32601 carrying the request id", async () => {
     const resp = await dispatchLocalMessage({ jsonrpc: "2.0", id: 9, method: "resources/list" }, { ctx: unitCtx() });
     expect(resp!.id).toBe(9);
-    expect(resp!.error.code).toBe(-32601);
-    expect(resp!.error.message).toContain("resources/list");
+    assert(resp?.error, "expected a JSON-RPC error");
+    expect(resp.error.code).toBe(-32601);
+    expect(resp.error.message).toContain("resources/list");
   });
 
   it("request without a method → -32600", async () => {
     const resp = await dispatchLocalMessage({ jsonrpc: "2.0", id: 3, params: {} }, { ctx: unitCtx() });
-    expect(resp!.error.code).toBe(-32600);
+    assert(resp?.error, "expected a JSON-RPC error");
+    expect(resp.error.code).toBe(-32600);
   });
 });
 
@@ -183,7 +197,8 @@ describe("non-JSON / garbage stdin tolerance", () => {
 describe("tools/list", () => {
   it("serves the three generic tools plus the public presales.chat exception, with the declared params", async () => {
     const resp = await dispatchLocalMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, { ctx: unitCtx() });
-    const tools = resp!.result.tools;
+    const tools = resultObject(resp).tools;
+    assert(Array.isArray(tools), "expected an array of tools");
     expect(tools.map((t: any) => t.name)).toEqual(["portal.catalog", "portal.describe", "portal.call", "presales.chat"]);
 
     const byName = Object.fromEntries(tools.map((t: any) => [t.name, t]));
@@ -289,7 +304,7 @@ describe("portal.catalog", () => {
     expect(isError).toBe(true);
     expect(payload.error).toContain("No credentials found");
     // tool error, not a protocol error: the frame is still a result
-    expect(resp!.result.isError).toBe(true);
+    expect(resultObject(resp).isError).toBe(true);
     expect(resp!.error).toBeUndefined();
   });
 });

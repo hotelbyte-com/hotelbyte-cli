@@ -199,8 +199,7 @@ const BUN_BIN = process.execPath;
 
 function runCli(args: string[], home: string): { stdout: string; stderr: string; exitCode: number | null } {
   const result = spawnSync(BUN_BIN, ["run", CLI_PATH, ...args], {
-    stdout: "pipe",
-    stderr: "pipe",
+    stdio: ["ignore", "pipe", "pipe"],
     // Global flag contract lives in the src/cli.ts prescan; HOTELBYTE_ENV is
     // pinned so a developer's shell export cannot flip the env under test.
     env: { ...process.env, STAICLI_HOME: home, HOTELBYTE_ENV: "uat" } as Record<string, string>,

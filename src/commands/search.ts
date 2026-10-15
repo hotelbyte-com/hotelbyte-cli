@@ -53,8 +53,10 @@ export function createSearchCommand(ctx: Ctx): Command {
       for (const [key, val] of Object.entries(opts)) {
         if (val === undefined) continue;
         if (key === "hotelIds") {
+          if (typeof val !== "string") throw new Error("--hotel-ids must be a comma-separated string");
           body.hotelIds = val.split(",");
         } else if (key === "roomOccupancies") {
+          if (typeof val !== "string") throw new Error("--room-occupancies must be JSON or @file.json");
           body.roomOccupancies = parseJsonInput(val);
         } else {
           body[camelKey(key)] = val;

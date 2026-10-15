@@ -77,8 +77,7 @@ function seedTicket(home: string): void {
 function runCli(args: string[], home: string): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   return new Promise((resolve) => {
     const child = spawn(BUN_BIN, ["run", CLI_PATH, ...args], {
-      stdout: "pipe",
-      stderr: "pipe",
+      stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
         STAICLI_HOME: home,

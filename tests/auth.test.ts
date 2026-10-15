@@ -97,12 +97,12 @@ describe("authenticatePortal", () => {
 
   it("should POST {email, password} to /api/auth/login (backend LoginReq contract)", async () => {
     const originalFetch = global.fetch;
-    let captured: { url: string; body: Record<string, unknown> } | null = null;
+    const captured: { url: string; body: Record<string, unknown> }[] = [];
     global.fetch = (async (_url: unknown, init?: RequestInit) => {
-      captured = {
+      captured.push({
         url: String(_url),
         body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
-      };
+      });
       return new Response(JSON.stringify({ token: "fresh-portal-ticket" }), { status: 200 });
     }) as typeof fetch;
     try {
@@ -112,10 +112,10 @@ describe("authenticatePortal", () => {
       };
       const t = await authenticatePortal(p);
       expect(t).toBe("fresh-portal-ticket");
-      expect(captured?.url).toBe(`${ENVIRONMENTS.uat}/api/auth/login`);
-      expect(captured?.body.email).toBe("user@example.com");
-      expect(captured?.body.password).toBe("pw");
-      expect(captured?.body.username).toBeUndefined();
+      expect(captured[0]?.url).toBe(`${ENVIRONMENTS.uat}/api/auth/login`);
+      expect(captured[0]?.body.email).toBe("user@example.com");
+      expect(captured[0]?.body.password).toBe("pw");
+      expect(captured[0]?.body.username).toBeUndefined();
     } finally {
       global.fetch = originalFetch;
     }

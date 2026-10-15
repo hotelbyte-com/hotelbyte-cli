@@ -87,7 +87,7 @@ async function selfUpdate(jsonMode: boolean): Promise<void> {
 
     const binaryResp = await fetch(asset.browser_download_url);
     if (!binaryResp.ok) throw new Error(`Download failed: ${binaryResp.status}`);
-    const binary = await binaryResp.arrayBuffer();
+    const binary = new Uint8Array(await binaryResp.arrayBuffer());
 
     const { join } = await import("node:path");
     const { existsSync, mkdirSync, writeFileSync, chmodSync, symlinkSync, unlinkSync } = await import("node:fs");

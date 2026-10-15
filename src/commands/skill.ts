@@ -28,7 +28,7 @@ const SKILL_SOURCE_ROOTS = [
   "https://hotelbyte.com/skills/hotelbyte",
 ] as const;
 
-type ClientId = "claude-code" | "grok" | "trae" | "codex" | "qoder";
+export type ClientId = "claude-code" | "grok" | "trae" | "codex" | "qoder";
 
 // Clients with a native skills directory (<home>/.<agent>/skills/<name>/SKILL.md).
 // Clients without one (Cursor, ChatGPT, VS Code, Cline, 豆包, WorkBuddy, Coze,

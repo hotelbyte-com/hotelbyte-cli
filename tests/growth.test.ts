@@ -20,7 +20,7 @@ import type { Ctx } from "../src/commands/helpers.ts";
 const BASE = "https://growth-stub.test";
 const TMP_HOME = join(import.meta.dir, ".tmp-growth-test-home");
 
-let captured: { url: string; body: Record<string, unknown> }[] = [];
+let captured: { url: string; body: Record<string, unknown> | string }[] = [];
 let stdoutLines: string[] = [];
 
 function installFetchStub(): void {
@@ -28,7 +28,7 @@ function installFetchStub(): void {
   global.fetch = (async (url: unknown, init?: RequestInit) => {
     captured.push({
       url: String(url),
-      body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      body: JSON.parse(String(init?.body ?? "{}")),
     });
     return new Response(JSON.stringify({ code: 0, msg: "ok", data: { stub: true, n: 1 } }), { status: 200 });
   }) as typeof fetch;
