@@ -15,14 +15,13 @@ const CLI_PATH = join(import.meta.dir, "..", "src", "cli.ts");
 const BUN_BIN = process.execPath;
 
 function runCliWithEnv(args: string[], env: Record<string, string>): { stdout: string; stderr: string; exitCode: number | null } {
-  const result = spawnSync(BUN_BIN, ["run", CLI_PATH, ...args], { stdout: "pipe", stderr: "pipe", env });
+  const result = spawnSync(BUN_BIN, ["run", CLI_PATH, ...args], { stdio: ["ignore", "pipe", "pipe"], env });
   return { stdout: result.stdout?.toString() ?? "", stderr: result.stderr?.toString() ?? "", exitCode: result.status };
 }
 
 function runCli(args: string[]): { stdout: string; stderr: string; exitCode: number | null } {
   const result = spawnSync(BUN_BIN, ["run", CLI_PATH, ...args], {
-    stdout: "pipe",
-    stderr: "pipe",
+    stdio: ["ignore", "pipe", "pipe"],
   });
   return {
     stdout: result.stdout?.toString() ?? "",
@@ -49,7 +48,7 @@ describe("Top-level CLI", () => {
   it("--version should show version", () => {
     const { stdout, exitCode } = runCli(["--version"]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("0.0.4");
+    expect(stdout).toContain("0.0.5");
   });
 });
 

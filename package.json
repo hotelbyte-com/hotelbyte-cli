@@ -1,6 +1,6 @@
 {
   "name": "staicli",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "staicli (hbcli) — HotelByte CLI for hotel search, booking, and tenant management",
   "type": "module",
   "bin": {
@@ -18,6 +18,7 @@
     "build": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/hbcli src/cli.ts",
     "build:all": "bun run scripts/build-all.ts",
     "test": "bun test",
+    "typecheck": "tsc --noEmit --allowImportingTsExtensions",
     "prepublishOnly": "bun run build:js"
   },
   "dependencies": {

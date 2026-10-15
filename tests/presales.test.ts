@@ -19,6 +19,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { spawn } from "node:child_process";
+import { text } from "node:stream/consumers";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -210,8 +211,8 @@ async function runCli(args: string[], baseUrl: string): Promise<{ stdout: string
       env: { ...process.env, STAICLI_HOME: home, HOTELBYTE_ENV: "uat", HOTELBYTE_BASE_URL: baseUrl } as Record<string, string>,
     });
     const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(child.stdout!).text(),
-      new Response(child.stderr!).text(),
+      text(child.stdout),
+      text(child.stderr),
       new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code))),
     ]);
     return { stdout, stderr, exitCode };
